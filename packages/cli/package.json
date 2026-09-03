@@ -1,6 +1,6 @@
 {
   "name": "@polyscript/cli",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "PolyScript CLI — check, dump-ast, build",
   "type": "module",
   "main": "./dist/index.js",
