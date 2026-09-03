@@ -97,7 +97,10 @@ export interface EvaluatorOptions {
   overrides?: Record<string, any>;
   /** Per-step metrics collector for --trace, or undefined for no recording.
    *  Mirrors the Python evaluator's trace hook; see src/trace.ts. */
-  trace?: { record(op: string, context: string, state: unknown, depth?: number): void };
+  trace?: {
+    readonly timing?: boolean;
+    record(op: string, context: string, state: unknown, depth?: number, ms?: number): void;
+  };
 }
 
 export class Evaluator {
@@ -1133,7 +1136,22 @@ export class Evaluator {
     if (shapes.length === 0) return createWorkplane(this.oc);
     if (shapes.length === 1) return shapes[0];
 
-    // Combine shapes
+    // The call form is not a pipe op, so the pipeline loop never sees it;
+    // record it here or a top-level `union [head, shaft]` -- often the most
+    // expensive boolean in a model -- is missing from the trace. The operands
+    // were evaluated above, so their own pipelines are already recorded.
+    const t0 = this.trace?.timing ? performance.now() : 0;
+    const result = this.combineShapes(shapes, mode);
+    if (this.trace) {
+      const name = { fuse: 'union', cut: 'diff', intersect: 'inter' }[mode];
+      const ms = this.trace.timing ? performance.now() - t0 : undefined;
+      this.trace.record(`${name} [${shapes.length}]`, result.shape ? '3D' : '2D', result,
+        Math.max(0, this.pipelineDepth - 1), ms);
+    }
+    return result;
+  }
+
+  private combineShapes(shapes: Value[], mode: 'fuse' | 'cut' | 'intersect'): WpState {
     let result = asWpState(shapes[0]);
     for (let i = 1; i < shapes.length; i++) {
       const state = asWpState(shapes[i]);
@@ -1199,10 +1217,12 @@ export class Evaluator {
       let ctx = this.sourceContext(node.source);
 
       for (const op of node.ops) {
+        const t0 = this.trace?.timing ? performance.now() : 0;
         state = this.evalPipeOp(asWpState(state), op, ctx);
         ctx = nextContext(ctx, op.type);
         if (this.trace) {
-          this.trace.record(opDisplayName(op), ctx, state, this.pipelineDepth - 1);
+          const ms = this.trace.timing ? performance.now() - t0 : undefined;
+          this.trace.record(opDisplayName(op), ctx, state, this.pipelineDepth - 1, ms);
         }
       }
 

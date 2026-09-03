@@ -136,6 +136,7 @@ poly [build] <input.poly> [-o <output>]
 | `--params-file <path>` | Read parameters from JSON (`-D` wins) |
 | `--mesh-deflection <v>` | Mesh tessellation deflection (default 0.1; higher = coarser, smaller file) |
 | `--trace` | Per-step selection counts, volume and solid counts |
+| `--timing` | Stage times (parse/init/evaluate/export) on stderr; with `--trace`, a per-step `ms` column |
 | `--strict` | Treat warnings as errors (exit 3) |
 | `--json` | Machine-readable report on stdout |
 | `-v, --verbose` | Print B-Rep info for the result |

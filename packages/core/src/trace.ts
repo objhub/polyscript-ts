@@ -7,6 +7,10 @@
  *
  * Recording is opt-in: with tracing off the evaluator never calls in here, so
  * the default build path pays nothing.
+ *
+ * `timing` adds a per-op wall-clock column (`ms`). It is off by default so the
+ * default table and JSON keys stay identical to the Python implementation,
+ * which has no timing.
  */
 
 import type { OC, WpState } from './ocp-kernel/types.js';
@@ -23,20 +27,39 @@ export interface TraceStep {
   faces?: number;
   edges?: number;
   wires?: number;
+  /** Wall-clock time of the op itself, exclusive of the trace's own
+   * measuring; inclusive of any nested pipeline it evaluated. */
+  ms?: number;
+}
+
+export interface TraceOptions {
+  /** Record per-op wall-clock time. */
+  timing?: boolean;
 }
 
 export class Trace {
   steps: TraceStep[] = [];
+  readonly timing: boolean;
 
-  record(opName: string, context: string, state: unknown, depth = 0): void {
+  constructor(options: TraceOptions = {}) {
+    this.timing = options.timing ?? false;
+  }
+
+  record(opName: string, context: string, state: unknown, depth = 0, ms?: number): void {
     const step: TraceStep = {
       index: this.steps.length + 1,
       op: opName,
       context,
       depth,
     };
+    if (this.timing && ms !== undefined) step.ms = Math.round(ms * 10) / 10;
     measure(step, state as WpState | null);
     this.steps.push(step);
+  }
+
+  /** Sum of the per-op times (only the ops that were timed). */
+  totalMs(): number {
+    return this.steps.reduce((acc, s) => acc + (s.ms ?? 0), 0);
   }
 
   toList(): Record<string, unknown>[] {
@@ -47,7 +70,7 @@ export class Trace {
         context: s.context,
       };
       if (s.depth) out.depth = s.depth;
-      for (const k of ['selected', 'total', 'volume', 'solids', 'faces', 'edges', 'wires'] as const) {
+      for (const k of ['selected', 'total', 'volume', 'solids', 'faces', 'edges', 'wires', 'ms'] as const) {
         if (s[k] !== undefined) out[k] = s[k];
       }
       return out;
@@ -72,13 +95,14 @@ export class Trace {
       ['solids', (s) => String(s.solids), (s) => s.solids],
       ['faces', (s) => String(s.faces), (s) => s.faces],
       ['wires', (s) => String(s.wires), (s) => s.wires],
+      ['ms', (s) => s.ms!.toFixed(1), (s) => s.ms],
     ];
     const active = columns.filter(
       ([, , present]) => present === null || this.steps.some((s) => present(s) !== undefined),
     );
 
     const attr: Record<string, keyof TraceStep | null> = {
-      sel: 'selected', volume: 'volume', solids: 'solids', faces: 'faces', wires: 'wires',
+      sel: 'selected', volume: 'volume', solids: 'solids', faces: 'faces', wires: 'wires', ms: 'ms',
     };
     const rows: string[][] = [active.map(([head]) => head)];
     for (const s of this.steps) {

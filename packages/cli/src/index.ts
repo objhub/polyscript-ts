@@ -170,14 +170,22 @@ program
   )
   .option('--params-file <path>', 'JSON file with parameter overrides (merged with -D; -D takes precedence)')
   .option('--trace', 'Print per-step metrics (selection counts, volume, solids)')
+  .option('--timing', 'Print stage timings (init/parse/evaluate/export) to stderr; adds an ms column to --trace')
   .option('--strict', 'Treat warnings as errors (exit 3)')
   .option('--json', 'Machine-readable JSON report on stdout')
   .option('--mesh-deflection <value>', 'STL/glTF mesh precision (default 0.1; larger = coarser)', parseFloat)
   .option('-v, --verbose', 'Print B-Rep facts about the result')
   .action(async (file: string, opts: {
     o?: string; format?: string; define?: string[]; paramsFile?: string;
-    trace?: boolean; strict?: boolean; json?: boolean; meshDeflection?: number; verbose?: boolean;
+    trace?: boolean; timing?: boolean; strict?: boolean; json?: boolean; meshDeflection?: number; verbose?: boolean;
   }) => {
+    const timing: Record<string, number> = {};
+    let mark = performance.now();
+    const lap = (stage: string) => {
+      const now = performance.now();
+      timing[stage] = Math.round((now - mark) * 10) / 10;
+      mark = now;
+    };
     const source = readInput(file);
     const overrides = buildOverrides(opts.define ?? [], opts.paramsFile, (msg) => {
       console.error(msg);
@@ -188,6 +196,7 @@ program
     try {
       const ast = parse(source);
       const errors = validate(ast);
+      lap('parse');
       if (errors.length > 0) {
         for (const err of errors) {
           console.error(`  ! ${err.message}`);
@@ -205,6 +214,7 @@ program
       let oc: any;
       try {
         oc = await initOC();
+        lap('init');
       } catch (err) {
         console.error(`Error: Failed to initialize OpenCascade: ${err}`);
         process.exit(EXIT_EXPORT);
@@ -213,13 +223,14 @@ program
 
       // Evaluate
       const sourceDir = dirname(resolve(file));
-      const trace = opts.trace ? new Trace() : undefined;
+      const trace = opts.trace ? new Trace({ timing: !!opts.timing }) : undefined;
       const result: Value = evaluate(ast, oc, {
         importResolver: makeImportResolver(sourceDir),
         parseFn: parse,
         overrides,
         trace,
       });
+      lap('evaluate');
       diagnostics.push(...warningDiagnostics());
 
       // Determine output path
@@ -238,11 +249,24 @@ program
         if (info) payload.shape = info;
         if (opts.verbose) lines.push(...formatShapeInfo(info));
         await exportShape(oc, shape, outputPath, opts.meshDeflection);
+        lap('export');
         payload.artifacts = { [fmt]: outputPath };
         lines.push(`✓ ${basename(file)} → ${outputPath}`);
       } else {
         lines.push(`✓ ${basename(file)}: evaluated (no shape to export)`);
         payload.shape = null;
+      }
+
+      if (opts.timing) {
+        // `evaluate` includes the trace's own per-step measuring when --trace
+        // is on (volume and sub-shape counts are not free), so compare runs
+        // with the same flags.
+        timing.total = Math.round(Object.values(timing).reduce((a, b) => a + b, 0) * 10) / 10;
+        payload.timing = timing;
+        const order = ['parse', 'init', 'evaluate', 'export', 'total'];
+        console.error(
+          `timing: ${order.filter((k) => k in timing).map((k) => `${k}=${timing[k].toFixed(1)}ms`).join(' ')}`,
+        );
       }
 
       if (trace) {

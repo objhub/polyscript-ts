@@ -7,7 +7,7 @@
  * separation are part of the contract.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { writeFileSync, rmSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -15,15 +15,8 @@ import { tmpdir } from 'node:os';
 const CLI = join(import.meta.dirname, '..', 'dist', 'index.js');
 
 function run(args: string[]): { stdout: string; stderr: string; code: number } {
-  try {
-    const stdout = execFileSync('node', [CLI, ...args], {
-      encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    return { stdout, stderr: '', code: 0 };
-  } catch (e: unknown) {
-    const err = e as { stdout?: string; stderr?: string; status?: number };
-    return { stdout: err.stdout ?? '', stderr: err.stderr ?? '', code: err.status ?? 1 };
-  }
+  const r = spawnSync('node', [CLI, ...args], { encoding: 'utf-8' });
+  return { stdout: r.stdout ?? '', stderr: r.stderr ?? '', code: r.status ?? 1 };
 }
 
 let dir: string;
@@ -110,6 +103,21 @@ describe('--trace', () => {
     const last = d.trace[d.trace.length - 1];
     expect(last.volume).toBeGreaterThan(0);
     expect(last.solids).toBe(1);
+    expect(last).not.toHaveProperty('ms');
+  }, 120000);
+});
+
+describe('--timing', () => {
+  it('prints stage totals to stderr and adds ms to the trace', () => {
+    const r = run(['build', f('good.poly'), '-o', f('o.stl'), '--trace', '--timing', '--json']);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toMatch(/timing: parse=[\d.]+ms init=[\d.]+ms evaluate=[\d.]+ms export=[\d.]+ms total=[\d.]+ms/);
+    const d = JSON.parse(r.stdout);
+    for (const k of ['parse', 'init', 'evaluate', 'export', 'total']) {
+      expect(typeof d.timing[k]).toBe('number');
+    }
+    expect(d.timing.evaluate).toBeGreaterThan(0);
+    for (const step of d.trace) expect(typeof step.ms).toBe('number');
   }, 120000);
 });
 

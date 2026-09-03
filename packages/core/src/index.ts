@@ -8,7 +8,7 @@ export type { Context, ValidationError } from './validator.js';
 export { Evaluator, Environment, EvalError, evaluate, evaluateExpressions, resultShape } from './evaluator.js';
 export type { Value, UserFunc, EvaluatorOptions } from './evaluator.js';
 export { Trace } from './trace.js';
-export type { TraceStep } from './trace.js';
+export type { TraceStep, TraceOptions } from './trace.js';
 export { drainWarnings } from './diagnostics.js';
 export { extractParams } from './params.js';
 export type { ParamInfo, ParamSet } from './params.js';
