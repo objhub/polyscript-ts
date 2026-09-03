@@ -5,7 +5,7 @@ export type { Token } from './lexer.js';
 export { Parser, ParseError, parse } from './parser.js';
 export { validate } from './validator.js';
 export type { Context, ValidationError } from './validator.js';
-export { Evaluator, Environment, EvalError, evaluate, evaluateExpressions, resultShape } from './evaluator.js';
+export { Evaluator, Environment, EvalError, evaluate, evaluateExpressions, resultShape, resultColorParts } from './evaluator.js';
 export type { Value, UserFunc, EvaluatorOptions } from './evaluator.js';
 export { Trace } from './trace.js';
 export type { TraceStep, TraceOptions } from './trace.js';

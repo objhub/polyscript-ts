@@ -1,6 +1,6 @@
 # PolyScript
 
-A pipe-based parametric CAD language built on OpenCascade that exports STL and STEP files.
+A pipe-based parametric CAD language built on OpenCascade that exports STL, STEP and glTF files.
 
 ```
 box 80 60 10
@@ -22,7 +22,7 @@ kernel to install.
 - **Expressions** -- arithmetic, comparisons, `if/then/else`, list comprehensions
 - **Parameters** -- override values from the command line without editing the source
 - **Headless verification** -- `poly info` and `--trace` report what was actually built
-- **Export** -- STL, STEP
+- **Export** -- STL, STEP, glTF (`.glb`, keeps per-part colours)
 
 ## Download
 
@@ -44,6 +44,7 @@ Build:
 ```bash
 poly hello.poly                     # → hello.stl (default)
 poly hello.poly -o hello.step       # export STEP
+poly hello.poly -o hello.glb        # export glTF, colours included
 ```
 
 ## Examples
@@ -131,7 +132,9 @@ poly [build] <input.poly> [-o <output>]
 | Flag | Description |
 |------|-------------|
 | `-o file.stl` | Export as STL (default: `<input>.stl`) |
-| `-o file.step` | Export as STEP |
+| `-o file.step` | Export as STEP (`.stp` also accepted) |
+| `-o file.glb` | Export as glTF binary, with `color` preserved per part |
+| `--format <fmt>` | `stl`, `step` or `glb`; overrides the extension |
 | `-D, --define <k=v>` | Override a parameter (repeatable) |
 | `--params-file <path>` | Read parameters from JSON (`-D` wins) |
 | `--mesh-deflection <v>` | Mesh tessellation deflection (default 0.1; higher = coarser, smaller file) |

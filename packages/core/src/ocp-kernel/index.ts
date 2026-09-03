@@ -73,7 +73,7 @@ export {
   exportSTL, exportSTEP, exportShape,
   exportSTLString, exportSTLBuffer, exportSTEPString,
   exportBREPString, importBREP,
-  exportGLTFBuffer,
+  exportGLTFBuffer, exportGLTF,
   tessellate,
   edgeSegments,
 } from './export.js';

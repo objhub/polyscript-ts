@@ -171,6 +171,13 @@ export interface ExportShapeOptions {
   linearDeflection?: number;
   /** Write ASCII STL instead of binary. */
   asciiStl?: boolean;
+  /** Angular deflection for glTF tessellation. Ignored by STL and STEP. */
+  angularDeflection?: number;
+  /** Single colour for the whole shape (RGB 0..1). glTF only. */
+  color?: [number, number, number];
+  /** Per-part colours from colorParts(). glTF only; wins over `color`.
+   *  STL and STEP carry no colour, so passing these is harmless there. */
+  parts?: ColorPart[];
 }
 
 export async function exportShape(
@@ -184,6 +191,17 @@ export async function exportShape(
     await exportSTL(oc, shape, filePath, options.linearDeflection, options.asciiStl);
   } else if (ext.endsWith('.step') || ext.endsWith('.stp')) {
     await exportSTEP(oc, shape, filePath);
+  } else if (ext.endsWith('.glb')) {
+    await exportGLTF(oc, shape, filePath, {
+      linearDeflection: options.linearDeflection,
+      angularDeflection: options.angularDeflection,
+      color: options.color,
+      parts: options.parts,
+    });
+  } else if (ext.endsWith('.gltf')) {
+    // OCCT's XCAF writer emits the binary container only. Writing those bytes
+    // to a .gltf file would mislabel them, so say so instead of guessing.
+    throw new Error(`glTF is written as the binary container; use .glb: ${filePath}`);
   } else {
     throw new Error(`Unsupported export format: ${filePath}`);
   }
@@ -235,6 +253,24 @@ export function exportGLTFBuffer(
   } finally {
     doc.close();
   }
+}
+
+/** Write a glTF binary (.glb) file.
+ *
+ * OCCT's XCAF writer produces the binary container only, so there is no .gltf
+ * counterpart. Unlike STL and STEP this carries colour, which is the reason to
+ * reach for it: pass `parts` from colorParts() to keep per-part colours.
+ */
+export async function exportGLTF(
+  oc: OC,
+  shape: Shape,
+  filePath: string,
+  options?: ExportOptions,
+): Promise<void> {
+  const data = exportGLTFBuffer(oc, shape, options);
+  const { writeFileSync } = await import('node:fs');
+  await ensureParentDir(filePath);
+  writeFileSync(filePath, data);
 }
 
 // ---------------------------------------------------------------------------

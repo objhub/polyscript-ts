@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { basename, dirname, resolve, extname, relative } from 'node:path';
 import { Command } from 'commander';
-import { parse, ParseError, validate, evaluate, resultShape, EvalError, extractParams, Trace, drainWarnings } from '@polyscript/core';
+import { parse, ParseError, validate, evaluate, resultShape, resultColorParts, EvalError, extractParams, Trace, drainWarnings } from '@polyscript/core';
 import type { Value } from '@polyscript/core';
 import { buildOverrides, warnUnknownParams } from './params.js';
 // package.json is the single source of truth for the version. The import
@@ -45,6 +45,27 @@ function emit(asJson: boolean, payload: Record<string, unknown>, lines: string[]
 // Several top-level shapes mean their union (see resultShape in core). This
 // used to build a compound here instead, so `poly info`/`build -v` disagreed
 // with both the regression harness and the browser bundle.
+/** Extensions that already name each format, so `-o out.stp --format step`
+ *  does not become `out.stp.step`. */
+const FORMAT_EXTENSIONS: Record<string, string[]> = {
+  stl: ['.stl'],
+  step: ['.step', '.stp'],
+  glb: ['.glb'],
+  // Listed so `-o x.gltf` keeps its name and reaches exportShape, which
+  // explains that OCCT writes the binary container and .glb is the extension.
+  // Without this the unknown extension fell back to STL and silently produced
+  // x.gltf.stl.
+  gltf: ['.gltf'],
+};
+
+function formatFromExtension(file: string): string {
+  const f = file.toLowerCase();
+  for (const [fmt, exts] of Object.entries(FORMAT_EXTENSIONS)) {
+    if (exts.some((e) => f.endsWith(e))) return fmt;
+  }
+  return 'stl';
+}
+
 function extractShape(result: Value, oc: any): any {
   return resultShape(oc, result);
 }
@@ -161,7 +182,7 @@ program
   .command('build <file>', { isDefault: true })
   .description('Build a .poly file to STL/STEP')
   .option('-o <output>', 'Output file path')
-  .option('--format <fmt>', 'Output format (stl|step)')
+  .option('--format <fmt>', 'Output format (stl|step|glb)')
   .option(
     '-D, --define <value>',
     'Override parameter (repeatable: -D width=100 -D height=50)',
@@ -238,8 +259,10 @@ program
       // Determine output path
       const inputBase = basename(file, extname(file));
       const outputFile = opts.o ?? `${inputBase}.stl`;
-      const fmt = opts.format ?? (outputFile.endsWith('.step') || outputFile.endsWith('.stp') ? 'step' : 'stl');
-      const outputPath = outputFile.endsWith(`.${fmt}`) ? outputFile : `${outputFile}.${fmt}`;
+      const fmt = opts.format ?? formatFromExtension(outputFile);
+      const outputPath = FORMAT_EXTENSIONS[fmt]?.some((e) => outputFile.toLowerCase().endsWith(e))
+        ? outputFile
+        : `${outputFile}.${fmt}`;
 
       const lines: string[] = [];
       const payload: Record<string, unknown> = { ok: true, phase: 'export', diagnostics };
@@ -250,7 +273,14 @@ program
         try { info = shapeInfo(oc, shape); } catch { /* best-effort */ }
         if (info) payload.shape = info;
         if (opts.verbose) lines.push(...formatShapeInfo(info));
-        await exportShape(oc, shape, outputPath, { linearDeflection: opts.meshDeflection, asciiStl: opts.asciiStl });
+        // Colour only reaches glTF; collecting parts for STL/STEP would be
+        // wasted kernel work on every build.
+        const parts = fmt === 'glb' ? resultColorParts(oc, result) : undefined;
+        await exportShape(oc, shape, outputPath, {
+          linearDeflection: opts.meshDeflection,
+          asciiStl: opts.asciiStl,
+          parts,
+        });
         lap('export');
         payload.artifacts = { [fmt]: outputPath };
         lines.push(`✓ ${basename(file)} → ${outputPath}`);

@@ -31,6 +31,8 @@ import {
   wpUnion, wpDiff, wpInter,
 } from '../ocp-kernel.js';
 import { ensureSolid } from '../ocp-kernel/geometry.js';
+import { colorParts } from '../ocp-kernel/color-parts.js';
+import type { ColorPart } from '../ocp-kernel/color-parts.js';
 import { mergeColorMaps } from '../ocp-kernel/types.js';
 
 // Re-export types and helpers
@@ -1421,6 +1423,23 @@ function ensureWorkplaneForFaceCtx(state: WpState, ctx: PipelineContext): WpStat
  * overlaps for 00_polyscript_logo while the regression harness (this
  * function) and the browser bundle both fused. Found 2026-09-02.
  */
+/** Per-colour parts of an evaluation result, for exporters that carry colour.
+ *
+ * The companion to resultShape: that fuses everything into one Shape, which is
+ * all STL and STEP can hold, while glTF keeps the parts apart so their colours
+ * survive. Mirrors what @polyscript/browser assembles for the viewer.
+ */
+export function resultColorParts(oc: OC, value: Value): ColorPart[] {
+  const states: WpState[] = Array.isArray(value)
+    ? (value.filter(isWpState) as WpState[])
+    : isWpState(value) ? [value as WpState] : [];
+  const parts: ColorPart[] = [];
+  for (const wp of states) {
+    if (wp.shape) parts.push(...colorParts(oc, wp, wp.shape));
+  }
+  return parts;
+}
+
 export function resultShape(oc: OC, value: Value): Shape | null {
   if (isWpState(value)) return (value as WpState).shape;
   if (Array.isArray(value) && value.length > 0 && value.some(v => isWpState(v))) {
