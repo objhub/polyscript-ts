@@ -67,6 +67,26 @@ export function exportSTEPString(oc: OC, shape: Shape): string {
 // Node.js file-writing helpers (async -- dynamic import of node:fs/node:path)
 // ---------------------------------------------------------------------------
 
+/** Create the parent directory of `filePath` when it is missing.
+ *
+ * Guarded rather than a bare `mkdirSync(dir, { recursive: true })`: Bun on
+ * Windows throws EEXIST from that call when the directory already exists, while
+ * Node and Bun on POSIX return silently. `poly build m.poly -o out.stl` has
+ * dirname "." and died in the release smoke test with
+ * `Evaluation error: EEXIST: file already exists, mkdir '.'`.
+ *
+ * Dynamic imports, like the callers: a static `node:fs` import here would be
+ * resolved by the bundler and break the browser build (see browser-bundling
+ * test in packages/core/test).
+ */
+async function ensureParentDir(filePath: string): Promise<void> {
+  const { existsSync, mkdirSync } = await import('node:fs');
+  const { dirname } = await import('node:path');
+  const dir = dirname(filePath);
+  if (!dir || dir === '.' || existsSync(dir)) return;
+  mkdirSync(dir, { recursive: true });
+}
+
 export async function exportSTL(
   oc: OC,
   shape: Shape,
@@ -74,9 +94,8 @@ export async function exportSTL(
   linearDeflection?: number,
 ): Promise<void> {
   const data = exportSTLString(oc, shape, linearDeflection);
-  const { writeFileSync, mkdirSync } = await import('node:fs');
-  const { dirname } = await import('node:path');
-  mkdirSync(dirname(filePath), { recursive: true });
+  const { writeFileSync } = await import('node:fs');
+  await ensureParentDir(filePath);
   writeFileSync(filePath, data, 'utf-8');
 }
 
@@ -86,9 +105,8 @@ export async function exportSTEP(
   filePath: string,
 ): Promise<void> {
   const data = exportSTEPString(oc, shape);
-  const { writeFileSync, mkdirSync } = await import('node:fs');
-  const { dirname } = await import('node:path');
-  mkdirSync(dirname(filePath), { recursive: true });
+  const { writeFileSync } = await import('node:fs');
+  await ensureParentDir(filePath);
   writeFileSync(filePath, data, 'utf-8');
 }
 
