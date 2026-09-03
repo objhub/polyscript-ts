@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { writeFileSync, unlinkSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { parseCliValue, buildOverrides } from '../src/params.js';
 
 const CLI = join(import.meta.dirname, '..', 'dist', 'index.js');
@@ -61,7 +62,7 @@ describe('buildOverrides (pure)', () => {
   });
 
   it('loads params file', () => {
-    const pf = '/tmp/polyscript-cli-params-test.json';
+    const pf = join(tmpdir(), 'polyscript-cli-params-test.json');
     writeFileSync(pf, JSON.stringify({ w: 10, h: 20, material: 'ABS' }));
     try {
       expect(buildOverrides([], pf)).toEqual({ w: 10, h: 20, material: 'ABS' });
@@ -71,7 +72,7 @@ describe('buildOverrides (pure)', () => {
   });
 
   it('CLI -D overrides params file', () => {
-    const pf = '/tmp/polyscript-cli-params-test2.json';
+    const pf = join(tmpdir(), 'polyscript-cli-params-test2.json');
     writeFileSync(pf, JSON.stringify({ w: 10 }));
     try {
       expect(buildOverrides(['w=999'], pf)).toEqual({ w: 999 });
@@ -82,8 +83,8 @@ describe('buildOverrides (pure)', () => {
 });
 
 describe('CLI integration — -D and --params-file', () => {
-  const srcFile = '/tmp/polyscript-cli-param-test.poly';
-  const outFile = '/tmp/polyscript-cli-param-test.stl';
+  const srcFile = join(tmpdir(), 'polyscript-cli-param-test.poly');
+  const outFile = join(tmpdir(), 'polyscript-cli-param-test.stl');
 
   it('-D changes runtime value', () => {
     writeFileSync(srcFile, 'w = 10\nbox w w w\n');
@@ -128,7 +129,7 @@ describe('CLI integration — -D and --params-file', () => {
     writeFileSync(srcFile, 'box 10 10 10\n');
     const { code, stderr } = run([
       'build', srcFile,
-      '--params-file', '/tmp/does-not-exist-xyz.json',
+      '--params-file', join(tmpdir(), 'does-not-exist-xyz.json'),
       '-o', outFile,
     ]);
     expect(code).not.toBe(0);
@@ -137,7 +138,7 @@ describe('CLI integration — -D and --params-file', () => {
   });
 
   it('--params-file loads values', () => {
-    const pf = '/tmp/polyscript-cli-params-int.json';
+    const pf = join(tmpdir(), 'polyscript-cli-params-int.json');
     writeFileSync(srcFile, 'w = 10\nbox w w w\n');
     writeFileSync(pf, JSON.stringify({ w: 30 }));
     try {
@@ -155,7 +156,7 @@ describe('CLI integration — -D and --params-file', () => {
   });
 
   it('CLI -D beats --params-file', () => {
-    const pf = '/tmp/polyscript-cli-params-pri.json';
+    const pf = join(tmpdir(), 'polyscript-cli-params-pri.json');
     writeFileSync(srcFile, 'w = 10\nbox w w w\n');
     writeFileSync(pf, JSON.stringify({ w: 30 }));
     try {

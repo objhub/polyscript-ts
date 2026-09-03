@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const CLI = join(import.meta.dirname, '..', 'dist', 'index.js');
 
@@ -15,7 +16,7 @@ function run(args: string[]): { stdout: string; code: number } {
   }
 }
 
-const tmpFile = '/tmp/polyscript-cli-test.poly';
+const tmpFile = join(tmpdir(), 'polyscript-cli-test.poly');
 
 describe('CLI', () => {
   it('check — valid file', () => {
@@ -52,7 +53,7 @@ describe('CLI', () => {
   });
 
   it('check — missing file', () => {
-    const { code } = run(['check', '/tmp/nonexistent.poly']);
+    const { code } = run(['check', join(tmpdir(), 'nonexistent.poly')]);
     expect(code).toBe(1);
   });
 });
