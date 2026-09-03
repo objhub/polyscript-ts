@@ -1,0 +1,27 @@
+# Keyboard case
+# ひっくり返して印刷することを想定
+
+#sketch [(5,0), arc (5,0) (0,-5) (-5,0), (0,7), (5,0)]
+#[rect 2 2 at:(1, 0), circle 1]
+#box 10 10 10 | faces >Z | $s | cut
+
+@param 1..7 label:"Column" desc:"Keyboard column"
+col = 3
+@param 1..5 label:"Row" desc:"Keyboard row"
+row = 2
+
+case_w = 19 * col + 10
+case_d = 19 * row + 10
+case_h = 20
+case = box case_w case_d case_h at:0 0 10
+ | faces <Z | shell 2
+ | edges [>Z, =Z] | fillet 3
+ | faces >Z | rect 14 14 | grid col row 19 | cut # sw hole
+ | faces >Y | polygon 3 2 | cut 3            # cable hole
+
+foot = rect (case_w - 4) (case_d - 4)
+ | verts | cone 2 0 10 | translate 0 0 5
+
+case
+foot
+

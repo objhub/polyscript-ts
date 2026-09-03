@@ -1,0 +1,27 @@
+# Shelf bracket with gusset reinforcement and mounting holes
+# L-shaped sheet metal: vertical plate (wall) + horizontal plate (shelf)
+
+t = 3       # plate thickness
+vw = 60     # vertical plate height (wall side)
+hw = 50     # horizontal plate width (shelf side)
+d = 25      # bracket depth (extrusion)
+
+# L-shaped profile: horizontal plate along X, vertical plate along Y
+bracket = polyline [(0,0), (hw,0), (hw,t), (t,t), (t,vw), (0,vw)]
+ | extrude d
+
+# Triangular gusset (reinforcement rib) in the inner corner
+gusset = polyline [(0,0), (25,0), (0,35)]
+ | extrude t
+ | translate t t ((d - t) / 2)
+
+# Combine and add edge fillets
+bracket
+ | union gusset
+ | edges "|Z" | fillet 2
+ | faces "<X" | workplane
+ | points (grid 1 2 20)
+ | hole 2.5
+ | faces "<Y" | workplane
+ | points (grid 2 1 18)
+ | hole 2

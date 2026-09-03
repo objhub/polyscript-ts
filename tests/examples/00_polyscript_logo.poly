@@ -1,0 +1,7 @@
+# PolyScript Logo
+
+cylinder 1 40 at:0 0 20
+cylinder 4 18 at:0 8 0 | fillet 1
+ | faces >Z | circle 2 | cut | rotate 90 0 90
+circle 8 at: 0 21 -3 | extrude 6 | fillet 1 | rotate 90 0 0
+polygon 3 10 at:0 35 -3 angle: 90| extrude 6 | fillet 1 | rotate 90 0 0

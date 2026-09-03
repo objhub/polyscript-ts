@@ -1,0 +1,34 @@
+{
+  "name": "@polyscript/browser",
+  "version": "0.1.0",
+  "description": "PolyScript browser API — PolyScriptEngine and Web Worker support",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./worker": {
+      "types": "./dist/worker-client.d.ts",
+      "import": "./dist/worker-client.js"
+    },
+    "./worker-entry": {
+      "types": "./dist/worker-entry.d.ts",
+      "import": "./dist/worker-entry.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "tsc --noEmit && biome lint src/"
+  },
+  "dependencies": {
+    "@polyscript/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

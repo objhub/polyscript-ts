@@ -1,0 +1,3 @@
+# 2D union then extrude (cross shape)
+union [rect 50 10, rect 10 40]
+ | extrude 5

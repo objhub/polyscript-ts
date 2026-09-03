@@ -1,0 +1,7 @@
+# Hex nut with through-hole
+r = 10
+polygon 6 r
+ | extrude 8
+ | faces >Z | circle 4 | cut
+ | faces >Z | chamfer 1
+ | faces <Z | chamfer 1

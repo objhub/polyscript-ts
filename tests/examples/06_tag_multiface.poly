@@ -1,0 +1,7 @@
+# Multi-face operations
+box 80 60 10
+ | edges "|Z" | fillet 5
+ | faces "<X" | workplane
+ | circle 5 | cut
+ | faces ">X" | workplane
+ | circle 5 | cut

@@ -1,0 +1,6 @@
+# Flanged pipe with bolt holes
+cylinder 25 5
+ | faces >Z | circle 15 | extrude 30
+ | faces >Z | hole 12
+ | faces <Z | points (polar 6 20)
+ | hole 3 depth:5

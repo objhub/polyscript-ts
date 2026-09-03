@@ -1,0 +1,9 @@
+# Spacer / washer stack
+cylinder 12 2
+ | diff cylinder 5 3
+ | faces ">Z" | workplane
+ | circle 8 | extrude 10
+ | diff cylinder 5 12
+ | faces ">Z" | workplane
+ | circle 12 | extrude 2
+ | diff cylinder 5 16

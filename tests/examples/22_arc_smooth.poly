@@ -1,0 +1,9 @@
+# Smooth profile using 3-point arc
+sketch [
+  (0, 0),
+  (10, 0),
+  arc (10, 0) (13, 1) (15, 5),
+  (15, 10),
+  (0, 10),
+  (0, 0)
+] | extrude 3

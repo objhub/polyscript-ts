@@ -1,0 +1,8 @@
+# Box with fillet and holes (SPEC example 1)
+box 80 60 10
+ | fillet 2
+ | faces ">Z"
+ | rect 60 40
+ | verts
+ | circle 2
+ | cut

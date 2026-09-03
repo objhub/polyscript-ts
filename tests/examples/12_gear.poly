@@ -1,0 +1,50 @@
+# Spur gear (involute tooth profile)
+#
+# The flanks follow a real involute curve, so two of these actually mesh:
+# place a second gear at centre distance a = m * (z1 + z2) / 2.
+#
+# One tooth is drawn from the root circle out along both flanks, replicated
+# with `polar`, and merged with the root disc. Angles are in degrees
+# throughout -- do not wrap them in rad().
+
+@param 8..60 desc:"歯数" group:"歯車諸元"
+z = 12
+
+@param 0.5..5 step:0.5 desc:"モジュール (mm)" group:"歯車諸元"
+m = 2
+
+@param 14.5..25 step:0.5 desc:"圧力角 (deg)" group:"歯車諸元"
+pa = 20
+
+@param 2..30 desc:"歯幅 (mm)" group:"寸法"
+h = 8
+
+@param 1..20 desc:"軸穴半径 (mm)" group:"寸法"
+bore = 3
+
+rp = m * z / 2            # pitch radius
+rb = rp * cos(pa)         # base radius
+ra = rp + m               # tip radius
+rf = rp - 1.25 * m        # root radius
+r0 = max(rb, rf)          # involute starts here (rf > rb once z >= 42)
+n = 10                    # points per flank
+
+# Involute polar angle and half tooth thickness at radius r
+def inv(r) = deg(tan(acos(rb / r))) - acos(rb / r)
+def half(r) = 90 / z + inv(rp) - inv(r)
+
+# One tooth outline, k = 0 .. 2n+1: rising flank (r0 -> ra), then falling
+# flank (ra -> r0). The two end points drop to rf so the tooth reaches into
+# the root disc it is merged with.
+def tr(k) = if k <= n then r0 + (ra - r0) * (k / n) else r0 + (ra - r0) * ((2 * n + 1 - k) / n)
+def ts(k) = if k <= n then -1 else 1
+def tx(k) = if k == 0 or k == 2 * n + 1 then rf else tr(k)
+
+$tooth = polyline [(tx(k) * cos(ts(k) * half(tr(k))),
+                    tx(k) * sin(ts(k) * half(tr(k))))
+                   for k in range(2 * n + 2)]
+
+$tooth | polar z 0 orient:true
+ | union (circle rf)
+ | extrude h
+ | diff (cylinder bore (h * 3))

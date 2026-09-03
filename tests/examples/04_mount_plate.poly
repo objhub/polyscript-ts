@@ -1,0 +1,6 @@
+# Mount plate with holes
+box 40 40 3
+ | fillet 1
+ | faces ">Z"
+ | points (polar 4 12)
+ | hole 4

@@ -1,0 +1,21 @@
+{
+  "name": "polyscript-ts",
+  "private": true,
+  "version": "0.1.0",
+  "description": "PolyScript — Parametric CAD DSL (TypeScript implementation)",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "test:coverage": "pnpm -r --parallel exec vitest run --coverage",
+    "lint": "pnpm -r lint"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.12"
+  },
+  "workspaces": [
+    "packages/*"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@polyscript/cli",
+  "version": "0.1.0",
+  "description": "PolyScript CLI — check, dump-ast, build",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "poly": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "tsc --noEmit && biome lint src/"
+  },
+  "dependencies": {
+    "@polyscript/core": "workspace:*",
+    "commander": "^13.0.0",
+    "occt-wasm": "https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps1/occt-wasm-4.3.2-ps1.tgz"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "typescript": "~5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

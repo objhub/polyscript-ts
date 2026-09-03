@@ -1,0 +1,8 @@
+# Regression: faces re-selection must reset moveto cursor offset.
+# After moveto + cut on front face, then faces >X without moveto,
+# the circle must draw at the face center (not carry over the prev offset).
+box 50 50 50
+ | faces <Y
+ | moveto 0 10 | circle 3 | cut
+ | faces >X
+ | circle 3 | extrude 5

@@ -1,0 +1,20 @@
+{
+  "generator": "polyscript-python",
+  "frozen": true,
+  "frozen_at": "2026-09-01",
+  "oracle": {
+    "implementation": "python",
+    "ocp_version": "7.9.3.1",
+    "occt_version": "7.9.3"
+  },
+  "note": "Frozen oracle. These snapshots were produced by the Python implementation on OCP/OCCT above, which is the independent cross-check for the TypeScript kernel. Python is in maintenance mode (see python/README.md), so regenerating these is no longer a routine action: a diff here means the TS kernel's geometry changed, and that requires human review, not a refresh. Regenerate only for a deliberate model or kernel change, and say so in the commit.",
+  "tolerance": {
+    "bbox": 0.1,
+    "volume_percent": 1
+  },
+  "regenerated_at": "2026-09-02T08:50:09.786012+00:00",
+  "provenance": {
+    "note": "A snapshot without a `source` block is from the frozen Python oracle above and is evidence of correctness. A snapshot with `source.implementation = \"typescript\"` was produced by the code under test: it detects change, not correctness, and was human-verified when written.",
+    "typescript_kernel": "occt-wasm 4.3.2-ps1"
+  }
+}

@@ -1,0 +1,14 @@
+# Rounded rectangle using arc with radius: (true quarter-arc fillets)
+$w = 20
+$h = 10
+$cr = 2
+sketch [
+  ($w/2 - $cr, -$h/2),
+  arc ($w/2 - $cr, -$h/2) ($w/2, -$h/2 + $cr) radius:$cr,
+  ($w/2, $h/2 - $cr),
+  arc ($w/2, $h/2 - $cr) ($w/2 - $cr, $h/2) radius:$cr,
+  (-$w/2 + $cr, $h/2),
+  arc (-$w/2 + $cr, $h/2) (-$w/2, $h/2 - $cr) radius:$cr,
+  (-$w/2, -$h/2 + $cr),
+  arc (-$w/2, -$h/2 + $cr) (-$w/2 + $cr, -$h/2) radius:$cr
+] | extrude 5

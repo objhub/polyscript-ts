@@ -1,0 +1,54 @@
+# Hex bolt with thread
+#
+# Head at the bottom (prints flat, no supports), shank threaded from the foot
+# to the tip.
+#
+# Three OCCT lessons are baked into this model:
+# - The helical tool stays fully buried in an oversized blank: a many-turn
+#   helical boolean shatters or silently fails when the tool crosses -- or
+#   starts near -- a planar end face. The shank is trimmed out afterwards.
+# - The groove profile overhangs the shank surface (lead) instead of exactly
+#   touching it. A tool tangent to the surface leaves micron-thin sliver
+#   solids in the grooves; overhanging the same flank lines cuts the identical
+#   groove with zero debris.
+# - Adjacent turns of the tool must not touch each other. The crest is the
+#   land left between neighbouring grooves, so a fully sharp crest (land = 0)
+#   means the swept tool is tangent to itself turn-to-turn, and with any lead
+#   it self-intersects; the later `inter` then silently returns nothing
+#   (solids 0, exit 0). ISO truncates the crest to pitch/8 for good reason.
+#   The guard is: half-width at the tool's outer edge, hw * (lead + gd) / gd,
+#   must stay below pitch / 2 -- which is why `lead` shrinks as `land` does.
+
+pitch = 2
+r = 4          # shank radius
+shank = 24     # shank length
+head_h = 6
+hr = 8         # hex head circumradius
+
+land = pitch / 8       # crest flat left between grooves (ISO metric truncation)
+hw = (pitch - land) / 2   # groove half-width at the shank surface
+gd = hw * 1.7320508    # groove depth for 60-degree flanks: half-width / tan(30)
+lead = gd / 8          # tool overhang past the shank surface. Sized against the
+                       # guard above: hw * (lead + gd) / gd = 1.125 * hw, which
+                       # stays under pitch / 2 as long as land >= pitch / 9.
+                       # Keep it well away from zero: OCCT 7.9.3's MakePipeShell
+                       # has been seen to flip a thin profile inside-out
+                       # (negative sweep volume, diff then removes nothing).
+groove = polyline [(lead, -(hw * (1 + lead / gd))),
+                   (-gd, 0),
+                   (lead, hw * (1 + lead / gd))]
+
+# Blank tall enough that the tool (z = 0 .. 26.7) stays buried at both ends.
+blank = cylinder r 38 | translate 0 0 12 | diff (helix pitch 26 r | sweep groove)
+
+# Trim the fully-threaded shank out of the blank and seat it on the head.
+shaft = blank
+ | inter (cylinder (r + 1) shank | floor | translate 0 0 1)
+ | translate 0 0 (head_h - 1)
+
+head = polygon 6 hr
+ | extrude head_h
+ | faces ">Z" | chamfer 2
+ | faces "<Z" | chamfer 2
+
+union [head, shaft]

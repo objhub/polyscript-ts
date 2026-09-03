@@ -1,0 +1,4 @@
+# L-bracket
+polyline [(0,0), (50,0), (50,5), (5,5), (5,30), (0,30)]
+ | extrude 20
+ | faces ">Z" | chamfer 1

@@ -1,0 +1,5 @@
+# Extrude a rectangle then cut a pocket
+rect 60 40
+ | extrude 15
+ | faces ">Z" | workplane
+ | rect 20 10 | cut 10

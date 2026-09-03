@@ -1,0 +1,4 @@
+# Cylinder with boolean difference (tube)
+cylinder 15 30
+ | diff cylinder 10 30
+ | fillet 1

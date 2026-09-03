@@ -1,0 +1,3 @@
+# Torus via sweep: closed circle path (radius 50) with circle 10 profile.
+# Demonstrates that sweep accepts any wire (open or closed) as path.
+circle 50 | sweep (circle 10)

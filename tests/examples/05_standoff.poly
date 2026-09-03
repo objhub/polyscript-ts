@@ -1,0 +1,5 @@
+# Standoff function
+def standoff(r, h, hole_r) = cylinder r h | diff cylinder hole_r h
+
+box 80 60 3 | fillet 1
+ | union (standoff 4 10 1.5 at:[(-30,-20,0), (30,-20,0), (-30,20,0), (30,20,0)])

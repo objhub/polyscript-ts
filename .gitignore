@@ -1,0 +1,10 @@
+node_modules/
+dist/
+
+build/
+*.tsbuildinfo
+.vitest/
+coverage/
+
+# Python bytecode from tests/generate_snapshots.py and tests/test_example.py
+__pycache__/

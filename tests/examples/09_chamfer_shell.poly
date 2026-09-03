@@ -1,0 +1,5 @@
+# Box with chamfer and shell
+box 60 40 30
+ | faces >Z | shell 2
+ | edges "|Z" | chamfer 3
+ | edges ">Z" | fillet 1

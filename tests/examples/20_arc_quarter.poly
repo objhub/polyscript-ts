@@ -1,0 +1,8 @@
+# Quarter arc (center-specified): true r=10 quarter circle
+$r = 10
+sketch [
+  ($r, 0),
+  arc ($r, 0) (0, $r) center:(0, 0),
+  (0, 0),
+  ($r, 0)
+] | extrude 5
