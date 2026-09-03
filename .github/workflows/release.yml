@@ -137,20 +137,16 @@ jobs:
           merge-multiple: true
           path: artifacts
 
-      # The release notes tell people to verify against this, so it has to be
-      # generated from the artefacts that are actually attached.
-      - name: Checksums
-        working-directory: artifacts
-        run: |
-          sha256sum poly-* > SHA256SUMS
-          cat SHA256SUMS
-
+      # No SHA256SUMS asset: GitHub records a SHA-256 digest for every uploaded
+      # asset and shows it under the file on the release page (also `digest` in
+      # the releases API). A checksum file we generate ourselves would just
+      # restate it, and is no more trustworthy -- both come from the same upload.
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/poly-*
-            artifacts/SHA256SUMS
           generate_release_notes: true
           body: |
             PolyScript CLI — single-binary builds produced with `bun build --compile`.
-            No runtime install needed. Verify downloads against `SHA256SUMS`.
+            No runtime install needed. GitHub shows each asset's SHA-256 digest
+            beneath the file; verify your download against that.

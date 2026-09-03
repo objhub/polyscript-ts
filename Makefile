@@ -172,7 +172,6 @@ release: release-check binary-all
 		esac; \
 		rm -rf $$stage; \
 	done
-	@cd $(RELEASE_DIR) && sha256sum * > SHA256SUMS
 	@echo
 	@ls -la $(RELEASE_DIR)/
 	@echo
@@ -185,4 +184,4 @@ release-publish:
 	@test -d $(RELEASE_DIR) || { echo "run 'make release' first" >&2; exit 1; }
 	gh release create v$(VERSION) $(RELEASE_DIR)/* \
 		--title "poly v$(VERSION)" \
-		--notes "PolyScript CLI v$(VERSION) — single-binary builds produced with \`bun build --compile\`. No runtime install needed. Verify downloads against SHA256SUMS."
+		--notes "PolyScript CLI v$(VERSION) — single-binary builds produced with \`bun build --compile\`. No runtime install needed. GitHub shows each asset's SHA-256 digest beneath the file."
