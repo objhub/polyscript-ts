@@ -24,12 +24,14 @@ BIN_DIR = $(BUILD_DIR)/bin
 # `bun build --compile` needs a Bun-only entry: it embeds only what its bundler
 # sees, and the 22 MB kernel is resolved at runtime. See packages/cli/bun-entry.ts.
 BUN_ENTRY = packages/cli/bun-entry.ts
-# Release assets keep the conventional target triples so download URLs and
-# install scripts do not change; bun's own --target names are mapped in the
-# rules below. bun also appends .exe for windows targets.
-# macOS は Apple Silicon のみ。x86_64-apple-darwin は 2026-09-03 に外した
+# Release assets are named poly-<platform>.{tar.gz,zip} -- short, and with no
+# version in the filename, so /releases/latest/download/poly-linux-x86_64.tar.gz
+# stays a stable URL across releases. Same scheme as polyscript-python.
+# bun's own --target names are mapped in the rules below; bun appends .exe for
+# windows targets.
+# macOS は Apple Silicon のみ。macos-x86_64 は 2026-09-03 に外した
 # (Intel Mac 向け。復活させるなら release.yml の matrix に macos-13 を戻す)。
-TARGETS = x86_64-unknown-linux-gnu aarch64-apple-darwin x86_64-pc-windows-msvc
+TARGETS = linux-x86_64 macos-arm64 windows-x86_64
 
 # Derived, not hardcoded: a new package with a test script joins the sweep
 # automatically. Hardcoded lists are how live/@polyscript/ui silently fell out
@@ -96,9 +98,9 @@ binary-all: build
 	@mkdir -p $(BIN_DIR)
 	@for t in $(TARGETS); do \
 		case $$t in \
-		  x86_64-unknown-linux-gnu) bt=bun-linux-x64;; \
-		  aarch64-apple-darwin)     bt=bun-darwin-arm64;; \
-		  x86_64-pc-windows-msvc)   bt=bun-windows-x64;; \
+		  linux-x86_64)   bt=bun-linux-x64;; \
+		  macos-arm64)    bt=bun-darwin-arm64;; \
+		  windows-x86_64) bt=bun-windows-x64;; \
 		  *) echo "no bun target for $$t"; exit 1;; \
 		esac; \
 		echo "=== $$t ($$bt) ==="; \
@@ -165,8 +167,8 @@ release: release-check binary-all
 		cp $$src $$stage/$$exe; chmod +x $$stage/$$exe; \
 		case $$t in \
 		  *windows*) (cd $$stage && zip -q poly.zip $$exe) && \
-		             mv $$stage/poly.zip $(RELEASE_DIR)/poly-$(VERSION)-$$t.zip;; \
-		  *) tar czf $(RELEASE_DIR)/poly-$(VERSION)-$$t.tar.gz -C $$stage $$exe;; \
+		             mv $$stage/poly.zip $(RELEASE_DIR)/poly-$$t.zip;; \
+		  *) tar czf $(RELEASE_DIR)/poly-$$t.tar.gz -C $$stage $$exe;; \
 		esac; \
 		rm -rf $$stage; \
 	done
