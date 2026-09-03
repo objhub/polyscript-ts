@@ -110,12 +110,13 @@ box($width, 20, 30)
   });
 
   describe('exportSTL()', () => {
-    it('delegates to exportSTLBuffer', async () => {
+    it('delegates to exportSTLBuffer (binary STL of the tessellation)', async () => {
       const engine = await PolyScriptEngine.init();
       const result = engine.exportSTL('mock-shape' as any);
       expect(result).toBeInstanceOf(Uint8Array);
-      const decoded = new TextDecoder().decode(result);
-      expect(decoded).toBe('solid mock\nendsolid mock');
+      // The mock tessellation is one triangle: header + count + one facet.
+      expect(result.length).toBe(84 + 50);
+      expect(new DataView(result.buffer).getUint32(80, true)).toBe(1);
     });
   });
 

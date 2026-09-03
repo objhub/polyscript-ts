@@ -53,14 +53,61 @@ export function exportSTLString(
   return oc.exportStl(shape, linearDeflection, true);
 }
 
-/** Return the STL content as a Uint8Array (UTF-8 encoded). */
+/**
+ * Return the STL content as binary STL (80-byte header, uint32 facet count,
+ * 50 bytes per facet): about 1/6 the size of ASCII for the same mesh, and
+ * what slicers expect.
+ *
+ * Built from our own tessellation rather than `oc.exportStl(.., false)`: that
+ * one returns the bytes through an Embind std::string, which JS decodes as
+ * UTF-8 and so every byte >= 0x80 comes back as U+FFFD. Same mesher and
+ * deflections as StlAPI_Writer, so the triangles match the ASCII export.
+ */
 export function exportSTLBuffer(
   oc: OC,
   shape: Shape,
   linearDeflection: number = 0.1,
 ): Uint8Array {
-  const str = exportSTLString(oc, shape, linearDeflection);
-  return new TextEncoder().encode(str);
+  const { positions, indices } = tessellate(oc, shape, { linearDeflection, edges: false });
+  const facets = Math.floor(indices.length / 3);
+  const bytes = new Uint8Array(84 + 50 * facets);
+  const view = new DataView(bytes.buffer);
+  // The header must not start with "solid", which readers take to mean ASCII.
+  bytes.set(new TextEncoder().encode('PolyScript binary STL').subarray(0, 80));
+  view.setUint32(80, facets, true);
+
+  let off = 84;
+  for (let t = 0; t < facets; t++) {
+    const a = indices[t * 3] * 3;
+    const b = indices[t * 3 + 1] * 3;
+    const c = indices[t * 3 + 2] * 3;
+    // Facet normal from the winding; the per-vertex normals from the mesher
+    // are smoothed and not what STL wants.
+    const ux = positions[b] - positions[a];
+    const uy = positions[b + 1] - positions[a + 1];
+    const uz = positions[b + 2] - positions[a + 2];
+    const vx = positions[c] - positions[a];
+    const vy = positions[c + 1] - positions[a + 1];
+    const vz = positions[c + 2] - positions[a + 2];
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const len = Math.hypot(nx, ny, nz);
+    if (len > 0) { nx /= len; ny /= len; nz /= len; } else { nx = ny = nz = 0; }
+    view.setFloat32(off, nx, true);
+    view.setFloat32(off + 4, ny, true);
+    view.setFloat32(off + 8, nz, true);
+    off += 12;
+    for (const i of [a, b, c]) {
+      view.setFloat32(off, positions[i], true);
+      view.setFloat32(off + 4, positions[i + 1], true);
+      view.setFloat32(off + 8, positions[i + 2], true);
+      off += 12;
+    }
+    view.setUint16(off, 0, true); // attribute byte count
+    off += 2;
+  }
+  return bytes;
 }
 
 /** Return the STEP content as a string. */
@@ -92,16 +139,21 @@ async function ensureParentDir(filePath: string): Promise<void> {
   mkdirSync(dir, { recursive: true });
 }
 
+/** Write an STL file; binary unless `ascii` is set. */
 export async function exportSTL(
   oc: OC,
   shape: Shape,
   filePath: string,
   linearDeflection?: number,
+  ascii = false,
 ): Promise<void> {
-  const data = exportSTLString(oc, shape, linearDeflection);
   const { writeFileSync } = await import('node:fs');
   await ensureParentDir(filePath);
-  writeFileSync(filePath, data, 'utf-8');
+  if (ascii) {
+    writeFileSync(filePath, exportSTLString(oc, shape, linearDeflection), 'utf-8');
+  } else {
+    writeFileSync(filePath, exportSTLBuffer(oc, shape, linearDeflection));
+  }
 }
 
 export async function exportSTEP(
@@ -115,15 +167,21 @@ export async function exportSTEP(
   writeFileSync(filePath, data, 'utf-8');
 }
 
+export interface ExportShapeOptions {
+  linearDeflection?: number;
+  /** Write ASCII STL instead of binary. */
+  asciiStl?: boolean;
+}
+
 export async function exportShape(
   oc: OC,
   shape: Shape,
   filePath: string,
-  linearDeflection?: number,
+  options: ExportShapeOptions = {},
 ): Promise<void> {
   const ext = filePath.toLowerCase();
   if (ext.endsWith('.stl')) {
-    await exportSTL(oc, shape, filePath, linearDeflection);
+    await exportSTL(oc, shape, filePath, options.linearDeflection, options.asciiStl);
   } else if (ext.endsWith('.step') || ext.endsWith('.stp')) {
     await exportSTEP(oc, shape, filePath);
   } else {

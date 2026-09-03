@@ -135,6 +135,7 @@ poly [build] <input.poly> [-o <output>]
 | `-D, --define <k=v>` | Override a parameter (repeatable) |
 | `--params-file <path>` | Read parameters from JSON (`-D` wins) |
 | `--mesh-deflection <v>` | Mesh tessellation deflection (default 0.1; higher = coarser, smaller file) |
+| `--ascii-stl` | Write ASCII STL instead of the default binary (about 6x larger; diff-friendly) |
 | `--trace` | Per-step selection counts, volume and solid counts |
 | `--timing` | Stage times (parse/init/evaluate/export) on stderr; with `--trace`, a per-step `ms` column |
 | `--strict` | Treat warnings as errors (exit 3) |

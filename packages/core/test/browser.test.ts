@@ -51,13 +51,16 @@ describe('exportSTLString', () => {
 });
 
 describe('exportSTLBuffer', () => {
-  it('returns a Uint8Array encoded from the STL string', async () => {
+  it('returns binary STL built from the tessellation', async () => {
     const { exportSTLBuffer } = await import('../src/ocp-kernel/export.js');
     const oc = createMockOC();
     const buf = exportSTLBuffer(oc as any, 'sh' as any);
     expect(buf).toBeInstanceOf(Uint8Array);
-    const decoded = new TextDecoder().decode(buf);
-    expect(decoded).toBe('solid mock\nendsolid mock');
+    expect(oc.tessellate).toHaveBeenCalled();
+    expect(oc.exportStl).not.toHaveBeenCalled();
+    // One mock triangle: header + count + one 50-byte facet.
+    expect(buf.length).toBe(84 + 50);
+    expect(new DataView(buf.buffer).getUint32(80, true)).toBe(1);
   });
 });
 

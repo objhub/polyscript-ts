@@ -12,12 +12,17 @@ function run(args: string[]): { stdout: string; stderr: string; code: number } {
   return { stdout: r.stdout ?? '', stderr: r.stderr ?? '', code: r.status ?? 1 };
 }
 
-/** Parse an STL file and return its bounding box max X. */
+/** Parse a binary STL file and return its bounding box max X. */
 function stlMaxX(path: string): number {
-  const c = readFileSync(path, 'utf-8');
-  const verts = [...c.matchAll(/vertex\s+(\S+)\s+(\S+)\s+(\S+)/g)];
+  const c = readFileSync(path);
+  const view = new DataView(c.buffer, c.byteOffset, c.byteLength);
+  const facets = view.getUint32(80, true);
   let max = -Infinity;
-  for (const m of verts) max = Math.max(max, parseFloat(m[1]));
+  for (let t = 0; t < facets; t++) {
+    for (let v = 0; v < 3; v++) {
+      max = Math.max(max, view.getFloat32(84 + 50 * t + 12 + 12 * v, true));
+    }
+  }
   return max;
 }
 

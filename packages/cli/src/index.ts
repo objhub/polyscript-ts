@@ -174,10 +174,12 @@ program
   .option('--strict', 'Treat warnings as errors (exit 3)')
   .option('--json', 'Machine-readable JSON report on stdout')
   .option('--mesh-deflection <value>', 'STL/glTF mesh precision (default 0.1; larger = coarser)', parseFloat)
+  .option('--ascii-stl', 'Write ASCII STL instead of binary (about 6x larger; diff-friendly)')
   .option('-v, --verbose', 'Print B-Rep facts about the result')
   .action(async (file: string, opts: {
     o?: string; format?: string; define?: string[]; paramsFile?: string;
     trace?: boolean; timing?: boolean; strict?: boolean; json?: boolean; meshDeflection?: number; verbose?: boolean;
+    asciiStl?: boolean;
   }) => {
     const timing: Record<string, number> = {};
     let mark = performance.now();
@@ -248,7 +250,7 @@ program
         try { info = shapeInfo(oc, shape); } catch { /* best-effort */ }
         if (info) payload.shape = info;
         if (opts.verbose) lines.push(...formatShapeInfo(info));
-        await exportShape(oc, shape, outputPath, opts.meshDeflection);
+        await exportShape(oc, shape, outputPath, { linearDeflection: opts.meshDeflection, asciiStl: opts.asciiStl });
         lap('export');
         payload.artifacts = { [fmt]: outputPath };
         lines.push(`✓ ${basename(file)} → ${outputPath}`);
