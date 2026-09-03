@@ -20,8 +20,13 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const SRC = new URL('../src', import.meta.url).pathname;
+// fileURLToPath, not `.pathname`: on Windows the latter yields "/D:/a/..." with
+// a leading slash, and join() then reads it as rooted on the current drive --
+// the CI failure was ENOENT on "D:\D:\a\...". `.pathname` also leaves percent
+// encoding intact, so a checkout path containing a space breaks it everywhere.
+const SRC = fileURLToPath(new URL('../src', import.meta.url));
 
 /** Static `import ... from 'node:x' | 'fs' | 'path' | 'module'`, but not `await import(...)`. */
 const STATIC_NODE_IMPORT =

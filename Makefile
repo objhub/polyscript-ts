@@ -27,7 +27,9 @@ BUN_ENTRY = packages/cli/bun-entry.ts
 # Release assets keep the conventional target triples so download URLs and
 # install scripts do not change; bun's own --target names are mapped in the
 # rules below. bun also appends .exe for windows targets.
-TARGETS = x86_64-unknown-linux-gnu aarch64-apple-darwin x86_64-apple-darwin x86_64-pc-windows-msvc
+# macOS は Apple Silicon のみ。x86_64-apple-darwin は 2026-09-03 に外した
+# (Intel Mac 向け。復活させるなら release.yml の matrix に macos-13 を戻す)。
+TARGETS = x86_64-unknown-linux-gnu aarch64-apple-darwin x86_64-pc-windows-msvc
 
 # Derived, not hardcoded: a new package with a test script joins the sweep
 # automatically. Hardcoded lists are how live/@polyscript/ui silently fell out
@@ -96,7 +98,6 @@ binary-all: build
 		case $$t in \
 		  x86_64-unknown-linux-gnu) bt=bun-linux-x64;; \
 		  aarch64-apple-darwin)     bt=bun-darwin-arm64;; \
-		  x86_64-apple-darwin)      bt=bun-darwin-x64;; \
 		  x86_64-pc-windows-msvc)   bt=bun-windows-x64;; \
 		  *) echo "no bun target for $$t"; exit 1;; \
 		esac; \
