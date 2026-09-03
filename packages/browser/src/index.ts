@@ -16,7 +16,7 @@ import { EvalError } from '@polyscript/core';
 import { extractParams as _extractParams } from '@polyscript/core';
 import type { ParamInfo, ParamSet } from '@polyscript/core';
 import type { Profile } from '@polyscript/core';
-import { initOC } from '@polyscript/core/ocp-kernel';
+import { initOC, memoizeKernel } from '@polyscript/core/ocp-kernel';
 import {
   exportSTLBuffer,
   exportSTEPString,
@@ -27,7 +27,7 @@ import {
   edgeSegments as _edgeSegments,
   colorParts,
 } from '@polyscript/core/ocp-kernel';
-import type { ExportOptions, TessellationMesh, TessellateOptions, ColorPart } from '@polyscript/core/ocp-kernel';
+import type { ExportOptions, TessellationMesh, TessellateOptions, ColorPart, KernelMemo, KernelMemoOptions, KernelMemoStats } from '@polyscript/core/ocp-kernel';
 import type { OC, Shape, Wire, WpState } from '@polyscript/core/ocp-kernel';
 
 // ---------------------------------------------------------------------------
@@ -63,6 +63,9 @@ export interface BuildResult {
   success: boolean;
   /** Tessellated polyline data for open wires (rendered as LineSegments). */
   lineMesh?: { positions: Float32Array; indices: Uint32Array };
+  /** Kernel-call cache hits/misses for this build (see memoizeKernel in
+   *  core). Absent when the engine was created with `memoize: false`. */
+  kernelCache?: KernelMemoStats;
 }
 
 export interface BuildError {
@@ -76,22 +79,41 @@ export interface BuildError {
 // Engine
 // ---------------------------------------------------------------------------
 
+export interface EngineOptions {
+  /** URL or bytes of the WASM binary (browser). */
+  wasm?: string | ArrayBuffer;
+  /** Memoize kernel calls across builds so unchanged statements cost
+   *  nothing on a rebuild. On by default; pass false for one-shot use, or
+   *  options to size the cache. */
+  memoize?: boolean | KernelMemoOptions;
+}
+
 export class PolyScriptEngine {
   private oc: OC;
+  private memo: KernelMemo | null;
+  /** The kernel the evaluator sees: memoized when enabled. */
+  private evalOc: OC;
 
-  private constructor(oc: OC) {
+  private constructor(oc: OC, memo: KernelMemo | null) {
     this.oc = oc;
+    this.memo = memo;
+    this.evalOc = memo?.oc ?? oc;
   }
 
   /**
    * Initialize the engine.  In a browser pass the URL or ArrayBuffer of the
    * WASM binary via `options.wasm`.
    */
-  static async init(
-    options?: { wasm?: string | ArrayBuffer },
-  ): Promise<PolyScriptEngine> {
+  static async init(options?: EngineOptions): Promise<PolyScriptEngine> {
     const oc = await initOC(options);
-    return new PolyScriptEngine(oc);
+    const memoize = options?.memoize ?? true;
+    const memo = memoize ? memoizeKernel(oc, memoize === true ? {} : memoize) : null;
+    return new PolyScriptEngine(oc, memo);
+  }
+
+  /** Drop every memoized kernel result. */
+  clearCache(): void {
+    this.memo?.clear();
   }
 
   /**
@@ -134,10 +156,11 @@ export class PolyScriptEngine {
     }
 
     // 4. Evaluate
+    this.memo?.resetStats();
     let result: ReturnType<Evaluator['evaluate']>;
     try {
       const evaluator = new Evaluator({
-        oc: this.oc,
+        oc: this.evalOc,
         overrides: options?.overrides as Record<string, any> | undefined,
         importResolver: options?.importResolver,
         parseFn: parse,
@@ -162,6 +185,7 @@ export class PolyScriptEngine {
         parameterSets: paramSet.parameterSets,
         profile: paramSet.profile,
         success: false,
+        kernelCache: this.memo?.stats(),
       };
     }
 
@@ -191,6 +215,7 @@ export class PolyScriptEngine {
       profile: paramSet.profile,
       success: true,
       lineMesh,
+      kernelCache: this.memo?.stats(),
     };
   }
 
@@ -299,16 +324,16 @@ export class PolyScriptEngine {
     for (const wp of states) {
       const { shape: wiresShape, openWires } = this.shapeAndLinesFromWires(wp.wires);
       allOpenWires.push(...openWires);
-      if (wp.shape) parts.push(...colorParts(this.oc, wp, wp.shape));
+      if (wp.shape) parts.push(...colorParts(this.evalOc, wp, wp.shape));
       if (wiresShape) parts.push({ shape: wiresShape, color: wp.color, alpha: wp.alpha });
 
       let wpShape = wp.shape ?? wiresShape;
       if (wp.shape && wiresShape) {
-        wpShape = this.oc.makeCompound([wp.shape, wiresShape]);
+        wpShape = this.evalOc.makeCompound([wp.shape, wiresShape]);
       }
       if (!wpShape) continue;
       if (!firstColor && wp.color) firstColor = wp.color;
-      fusedShape = fusedShape ? this.oc.fuse(fusedShape, wpShape) : wpShape;
+      fusedShape = fusedShape ? this.evalOc.fuse(fusedShape, wpShape) : wpShape;
     }
 
     return { shape: fusedShape, color: firstColor, parts, openWires: allOpenWires };
@@ -398,5 +423,5 @@ export class PolyScriptEngine {
 
 export type { ParamInfo, ParamSet };
 export type { Profile, ProfileEntry } from '@polyscript/core';
-export type { ExportOptions, TessellationMesh, TessellateOptions, ColorPart } from '@polyscript/core/ocp-kernel';
+export type { ExportOptions, TessellationMesh, TessellateOptions, ColorPart, KernelMemoStats, KernelMemoOptions } from '@polyscript/core/ocp-kernel';
 export type { Shape } from '@polyscript/core/ocp-kernel';

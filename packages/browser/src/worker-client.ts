@@ -23,6 +23,8 @@ export interface WorkerBuildResult {
   params: any[];
   parameterSets: Record<string, Record<string, unknown>>;
   profile?: { entries: { name: string; values: Record<string, any> }[] };
+  timing?: { evaluate: number; tessellate: number };
+  kernelCache?: { hits: number; misses: number; size: number };
 }
 
 export type BuildRequestOptions = { overrides?: Record<string, unknown>; imports?: Record<string, string> };
@@ -139,6 +141,8 @@ export class PolyWorker {
       params: resp.params ?? [],
       parameterSets: resp.parameterSets ?? {},
       profile: resp.profile,
+      timing: resp.timing,
+      kernelCache: resp.kernelCache,
     };
   }
 

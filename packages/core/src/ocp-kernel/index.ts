@@ -82,3 +82,5 @@ export type { TessellationMesh, ExportOptions, ExportShapeOptions, TessellateOpt
 // Color parts (per-part colors that survive the pipeline)
 export { colorParts, hasDistinctColors } from './color-parts.js';
 export type { ColorPart, RGB } from './color-parts.js';
+export { memoizeKernel, MEMOIZED } from './memo.js';
+export type { KernelMemo, KernelMemoStats, KernelMemoOptions } from './memo.js';

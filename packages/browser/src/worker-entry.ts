@@ -59,6 +59,11 @@ export interface WorkerResponse {
   params?: any[];
   parameterSets?: Record<string, Record<string, unknown>>;
   profile?: { entries: { name: string; values: Record<string, any> }[] };
+  /** build wall-clock in ms: evaluation (parse through implicit union) and
+   *  tessellation. */
+  timing?: { evaluate: number; tessellate: number };
+  /** kernel-call cache figures for this build (see memoizeKernel in core) */
+  kernelCache?: { hits: number; misses: number; size: number };
   /** export result */
   data?: ArrayBuffer | string;
   filename?: string;
@@ -93,7 +98,9 @@ function handleBuild(req: WorkerRequest): WorkerResponse {
       opts.importResolver = (path: string) => imports[path] ?? null;
     }
 
+    const t0 = performance.now();
     const result = engine.build(req.code ?? '', opts);
+    const evaluateMs = performance.now() - t0;
 
     if (!result.success) {
       lastShape = null;
@@ -107,6 +114,7 @@ function handleBuild(req: WorkerRequest): WorkerResponse {
         params: result.params,
         parameterSets: result.parameterSets,
         profile: result.profile,
+        kernelCache: result.kernelCache,
       };
     }
 
@@ -114,10 +122,12 @@ function handleBuild(req: WorkerRequest): WorkerResponse {
     lastParts = result.parts;
     lastColor = result.color;
 
+    const t1 = performance.now();
     const mesh = result.shape ? tessellateResult(engine, result.shape, result.parts) : emptyMesh();
     if (result.lineMesh) {
       mesh.lines = result.lineMesh;
     }
+    const tessellateMs = performance.now() - t1;
     let volume: number | undefined;
     if (result.shape) {
       try { volume = engine.kernel.getVolume(result.shape); } catch { /* non-solid */ }
@@ -133,6 +143,8 @@ function handleBuild(req: WorkerRequest): WorkerResponse {
       params: result.params,
       parameterSets: result.parameterSets,
       profile: result.profile,
+      timing: { evaluate: Math.round(evaluateMs), tessellate: Math.round(tessellateMs) },
+      kernelCache: result.kernelCache,
     };
   } catch (e: any) {
     lastShape = null;
