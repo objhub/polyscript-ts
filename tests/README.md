@@ -35,7 +35,7 @@ Python実装とTypeScript実装が同じスナップショットを共有し、�
 ## ファイル構成
 
 ```
-typescript/tests/
+polyscript-ts/tests/
   examples/                  # 例題コーパス(26件)。live のギャラリーもここを参照する
     01_simple_box.poly
     ...
@@ -66,13 +66,13 @@ TypeScript 版の照合は `packages/core/test/regression.test.ts`
 ### TypeScript テスト
 
 ```bash
-cd typescript && make fulltest        # Bun 実行(出荷ランタイム)
+cd polyscript-ts && make fulltest        # Bun 実行(出荷ランタイム)
 ```
 
 ### Python テスト
 
 ```bash
-cd python && uv run pytest ../typescript/tests/test_example.py -v
+cd python && uv run pytest ../polyscript-ts/tests/test_example.py -v
 ```
 
 `cd python && make fulltest` からも実行されます。
@@ -80,7 +80,7 @@ cd python && uv run pytest ../typescript/tests/test_example.py -v
 ### スナップショット再生成(意図的な形状変更時のみ)
 
 ```bash
-cd python && uv run python ../typescript/tests/generate_snapshots.py
+cd python && uv run python ../polyscript-ts/tests/generate_snapshots.py
 ```
 
 **全ファイルを上書きする**ので、1ファイルだけ変えたい場合は対象を絞って

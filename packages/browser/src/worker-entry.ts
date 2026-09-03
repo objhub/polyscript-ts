@@ -9,6 +9,8 @@
 
 import { PolyScriptEngine } from './index.js';
 import type { BuildOptions, BuildError } from './index.js';
+import { hasDistinctColors } from '@polyscript/core/ocp-kernel';
+import type { ColorPart } from '@polyscript/core/ocp-kernel';
 
 let engine: PolyScriptEngine | null = null;
 
@@ -22,7 +24,27 @@ export interface WorkerRequest {
   buildOptions?: { overrides?: Record<string, unknown>; imports?: Record<string, string> };
   /** export */
   format?: 'stl' | 'step' | 'gltf' | 'brep';
-  exportOptions?: { colorMap?: [string, [number, number, number, number]][]; color?: [number, number, number] };
+}
+
+/** One colored piece of the model. See MeshData in @polyscript/ui. */
+export interface WorkerMeshPart {
+  positions: Float32Array;
+  normals: Float32Array;
+  indices: Uint32Array;
+  color?: [number, number, number];
+  alpha?: number;
+}
+
+export interface WorkerMesh {
+  positions: Float32Array;
+  normals: Float32Array;
+  indices: Uint32Array;
+  /** CAD edges of the whole (fused) shape. */
+  edgePoints?: Float32Array;
+  /** Present only when the model has more than one color: the faces then
+   *  live in the parts and the top-level arrays are empty. */
+  parts?: WorkerMeshPart[];
+  lines?: { positions: Float32Array; indices: Uint32Array };
 }
 
 export interface WorkerResponse {
@@ -30,7 +52,7 @@ export interface WorkerResponse {
   type: 'init' | 'build' | 'export';
   ok: boolean;
   /** build result */
-  mesh?: { positions: Float32Array; normals: Float32Array; indices: Uint32Array; edgePoints?: Float32Array };
+  mesh?: WorkerMesh;
   color?: [number, number, number];
   volume?: number;
   errors?: BuildError[];
@@ -47,7 +69,7 @@ export interface WorkerResponse {
 
 // Current build shape (retained in worker for subsequent export calls)
 let lastShape: any = null;
-let lastColorMap: Map<any, [number, number, number, number]> | null = null;
+let lastParts: ColorPart[] = [];
 let lastColor: [number, number, number] | undefined;
 
 async function handleInit(req: WorkerRequest): Promise<WorkerResponse> {
@@ -75,7 +97,7 @@ function handleBuild(req: WorkerRequest): WorkerResponse {
 
     if (!result.success) {
       lastShape = null;
-      lastColorMap = null;
+      lastParts = [];
       lastColor = undefined;
       return {
         id: req.id,
@@ -89,13 +111,10 @@ function handleBuild(req: WorkerRequest): WorkerResponse {
     }
 
     lastShape = result.shape;
-    lastColorMap = result.colorMap;
+    lastParts = result.parts;
     lastColor = result.color;
 
-    // Tessellate 3D shape if available, merge line data for open wires
-    const mesh = result.shape
-      ? engine.tessellate(result.shape)
-      : { positions: new Float32Array(0), normals: new Float32Array(0), indices: new Uint32Array(0) };
+    const mesh = result.shape ? tessellateResult(engine, result.shape, result.parts) : emptyMesh();
     if (result.lineMesh) {
       mesh.lines = result.lineMesh;
     }
@@ -117,10 +136,32 @@ function handleBuild(req: WorkerRequest): WorkerResponse {
     };
   } catch (e: any) {
     lastShape = null;
-    lastColorMap = null;
+    lastParts = [];
     lastColor = undefined;
     return { id: req.id, type: 'build', ok: false, error: e.message ?? String(e) };
   }
+}
+
+function emptyMesh(): WorkerMesh {
+  return { positions: new Float32Array(0), normals: new Float32Array(0), indices: new Uint32Array(0) };
+}
+
+/**
+ * A monochrome model is one mesh, exactly as before. A model whose parts
+ * carry different colors is tessellated part by part (each part gets one
+ * material in the viewer) under the edge outline of the fused shape, so
+ * internal edges where parts meet are not drawn.
+ */
+function tessellateResult(engine: PolyScriptEngine, shape: any, parts: ColorPart[]): WorkerMesh {
+  if (!hasDistinctColors(parts)) return engine.tessellate(shape);
+  const mesh = emptyMesh();
+  mesh.edgePoints = engine.edgeSegments(shape);
+  mesh.parts = parts.map((p) => ({
+    ...engine.tessellate(p.shape, { edges: false }),
+    color: p.color,
+    alpha: p.alpha,
+  }));
+  return mesh;
 }
 
 function handleExport(req: WorkerRequest): WorkerResponse {
@@ -144,10 +185,7 @@ function handleExport(req: WorkerRequest): WorkerResponse {
         mime = 'application/STEP';
         break;
       case 'gltf': {
-        const opts: any = {};
-        if (lastColorMap && lastColorMap.size > 0) opts.colorMap = lastColorMap;
-        else if (lastColor) opts.color = lastColor;
-        data = engine.exportGLTF(lastShape, opts);
+        data = engine.exportGLTF(lastShape, { parts: lastParts, color: lastColor });
         filename = 'model.glb';
         mime = 'model/gltf-binary';
         break;
@@ -208,6 +246,9 @@ ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {
     );
     if (resp.mesh.edgePoints) {
       transferables.push(resp.mesh.edgePoints.buffer);
+    }
+    for (const part of resp.mesh.parts ?? []) {
+      transferables.push(part.positions.buffer, part.normals.buffer, part.indices.buffer);
     }
   }
   if (resp.data instanceof ArrayBuffer) {

@@ -75,5 +75,10 @@ export {
   exportBREPString, importBREP,
   exportGLTFBuffer,
   tessellate,
+  edgeSegments,
 } from './export.js';
-export type { TessellationMesh, ExportOptions } from './export.js';
+export type { TessellationMesh, ExportOptions, TessellateOptions } from './export.js';
+
+// Color parts (per-part colors that survive the pipeline)
+export { colorParts, hasDistinctColors } from './color-parts.js';
+export type { ColorPart, RGB } from './color-parts.js';

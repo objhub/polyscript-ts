@@ -10,6 +10,7 @@
  */
 
 import type { OC, Shape } from './types.js';
+import type { ColorPart } from './color-parts.js';
 
 // ---------------------------------------------------------------------------
 // Mesh data returned by tessellate()
@@ -19,6 +20,8 @@ export interface TessellationMesh {
   positions: Float32Array;
   normals: Float32Array;
   indices: Uint32Array;
+  /** CAD edge polylines as line-segment pairs (XYZ interleaved). Absent when
+   *  tessellated with `edges: false`. */
   edgePoints?: Float32Array;
   /** Line geometry for open wires (rendered as LineSegments). */
   lines?: {
@@ -31,8 +34,10 @@ export interface TessellationMesh {
 export interface ExportOptions {
   linearDeflection?: number;
   angularDeflection?: number;
+  /** Single color for the whole shape (RGB 0..1). */
   color?: [number, number, number];
-  colorMap?: Map<Shape, [number, number, number, number]>;
+  /** Per-part colors from colorParts(); takes precedence over `color`. */
+  parts?: ColorPart[];
 }
 
 // ---------------------------------------------------------------------------
@@ -144,7 +149,11 @@ export function importBREP(oc: OC, data: string): Shape {
 // glTF (GLB) export via XCAF document
 // ---------------------------------------------------------------------------
 
-/** Export a Shape as glTF (GLB) binary. */
+/** Export a Shape as glTF (GLB) binary.
+ *
+ * With `options.parts` each part becomes its own colored node and `shape` is
+ * not added (the parts together are the shape). Otherwise the whole shape
+ * gets `options.color`. */
 export function exportGLTFBuffer(
   oc: OC,
   shape: Shape,
@@ -152,19 +161,14 @@ export function exportGLTFBuffer(
 ): Uint8Array {
   const doc = oc.createXCAFDocument();
   try {
-    const colorMap = options?.colorMap;
-    if (colorMap && colorMap.size > 0) {
-      // Multi-part colored export: add each sub-shape with its color
-      for (const [subShape, [r, g, b, _a]] of colorMap) {
-        doc.addShape(subShape, { color: [r, g, b] });
+    const fallback: [number, number, number] = options?.color ?? [0.6, 0.6, 0.65];
+    const parts = options?.parts;
+    if (parts && parts.length > 0) {
+      for (const part of parts) {
+        doc.addShape(part.shape, { color: part.color ?? fallback });
       }
-      // Add the combined shape without color for parts not in colorMap
-      // (the XCAF document handles the hierarchy)
     } else {
-      // Single-color export
-      doc.addShape(shape, {
-        color: options?.color ?? [0.6, 0.6, 0.65],
-      });
+      doc.addShape(shape, { color: fallback });
     }
     return doc.exportGLTF({
       linearDeflection: options?.linearDeflection ?? 0.1,
@@ -179,17 +183,37 @@ export function exportGLTFBuffer(
 // Tessellation — produces Three.js-compatible BufferGeometry data
 // ---------------------------------------------------------------------------
 
+export interface TessellateOptions extends Pick<ExportOptions, 'linearDeflection' | 'angularDeflection'> {
+  /** Also compute `edgePoints` (default true). Off when the caller draws
+   *  edges from another shape, e.g. per-part meshes under one fused outline. */
+  edges?: boolean;
+}
+
 /** Tessellate a Shape into positions, normals, and indices arrays. */
 export function tessellate(
   oc: OC,
   shape: Shape,
-  options?: Pick<ExportOptions, 'linearDeflection' | 'angularDeflection'>,
+  options?: TessellateOptions,
 ): TessellationMesh {
   const deflection = options?.linearDeflection ?? 0.1;
   const mesh = oc.tessellate(shape, {
     linearDeflection: deflection,
     angularDeflection: options?.angularDeflection ?? 0.5,
   });
+  if (options?.edges === false) {
+    return { positions: mesh.positions, normals: mesh.normals, indices: mesh.indices };
+  }
+  return {
+    positions: mesh.positions,
+    normals: mesh.normals,
+    indices: mesh.indices,
+    edgePoints: edgeSegments(oc, shape, deflection),
+  };
+}
+
+/** CAD edges of `shape` sampled at `deflection`, as line-segment pairs for
+ *  THREE.LineSegments. */
+export function edgeSegments(oc: OC, shape: Shape, deflection: number = 0.1): Float32Array {
   const edges = oc.wireframe(shape, deflection);
   // Convert polyline points to line-segment pairs for THREE.LineSegments
   const pts = edges.points;
@@ -211,10 +235,5 @@ export function tessellate(
       segPts[out++] = pts[b]; segPts[out++] = pts[b + 1]; segPts[out++] = pts[b + 2];
     }
   }
-  return {
-    positions: mesh.positions,
-    normals: mesh.normals,
-    indices: mesh.indices,
-    edgePoints: segPts,
-  };
+  return segPts;
 }

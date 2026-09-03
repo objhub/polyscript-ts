@@ -4,7 +4,7 @@
 	import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 	import { ViewHelper } from 'three/addons/helpers/ViewHelper.js';
 	import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-	import type { MeshData } from './types';
+	import type { MeshData, MeshPart } from './types';
 
 	interface Props {
 		meshData?: MeshData | null;
@@ -21,8 +21,8 @@
 	let camera: THREE.PerspectiveCamera | null = null;
 	let controls: OrbitControls | null = null;
 	let viewHelper: ViewHelper | null = null;
-	let currentMesh: THREE.Mesh | null = null;
-	let edgeLines: THREE.LineSegments | null = null;
+	// The model: a single Mesh, or a Group of one Mesh per colored part.
+	let currentMesh: THREE.Object3D | null = null;
 	let gridHelper: THREE.GridHelper | null = null;
 	let axisHelper: THREE.AxesHelper | null = null;
 	let animationId: number;
@@ -66,12 +66,16 @@
 	}
 
 	function applyEdgeOnly() {
-		if (currentMesh) {
-			const mat = currentMesh.material as THREE.MeshPhongMaterial;
-			mat.transparent = edgeOnly;
-			mat.opacity = edgeOnly ? 0 : 1;
-			mat.depthWrite = !edgeOnly;
-		}
+		if (!currentMesh) return;
+		currentMesh.traverse((child) => {
+			if (!(child instanceof THREE.Mesh)) return;
+			const mat = child.material as THREE.MeshPhongMaterial;
+			// A part's own alpha (color ... alpha:0.5) is the resting opacity.
+			const alpha: number = child.userData.alpha ?? 1;
+			mat.transparent = edgeOnly || alpha < 1;
+			mat.opacity = edgeOnly ? 0 : alpha;
+			mat.depthWrite = !edgeOnly && alpha >= 1;
+		});
 	}
 
 	function toggleAxis() {
@@ -86,22 +90,20 @@
 
 	function removeMesh() {
 		if (!scene) return;
-		if (edgeLines) {
-			scene.remove(edgeLines);
-			edgeLines.geometry.dispose();
-			(edgeLines.material as THREE.Material).dispose();
-			edgeLines = null;
-		}
 		if (!currentMesh) return;
 		scene.remove(currentMesh);
-		currentMesh.geometry.dispose();
-		const mat = currentMesh.material;
-		if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
-		else (mat as THREE.Material).dispose();
+		currentMesh.traverse((child) => {
+			if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
+				child.geometry.dispose();
+				const mat = child.material;
+				if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+				else (mat as THREE.Material).dispose();
+			}
+		});
 		currentMesh = null;
 	}
 
-	function loadMesh(mesh: THREE.Mesh) {
+	function loadMesh(mesh: THREE.Object3D) {
 		if (!scene) return;
 		removeMesh();
 		currentMesh = mesh;
@@ -112,56 +114,79 @@
 		}
 	}
 
+	function partGeometry(part: MeshPart | MeshData): THREE.BufferGeometry {
+		const geometry = new THREE.BufferGeometry();
+		geometry.setAttribute('position', new THREE.BufferAttribute(part.positions, 3));
+		if (part.normals && part.normals.length > 0) {
+			geometry.setAttribute('normal', new THREE.BufferAttribute(part.normals, 3));
+		}
+		geometry.setIndex(new THREE.BufferAttribute(part.indices, 1));
+		if (!geometry.getAttribute('normal')) {
+			geometry.computeVertexNormals();
+		}
+		return geometry;
+	}
+
+	function partMaterial(color: [number, number, number] | undefined, colors?: Float32Array): THREE.MeshPhongMaterial {
+		if (colors) {
+			return new THREE.MeshPhongMaterial({ vertexColors: true, specular: 0x222222, shininess: 40 });
+		}
+		const rgb = color ?? [1.0, 0.92, 0.3];
+		return new THREE.MeshPhongMaterial({
+			color: new THREE.Color(rgb[0], rgb[1], rgb[2]),
+			specular: 0x222222,
+			shininess: 40
+		});
+	}
+
+	function edgeMaterial(): THREE.LineBasicMaterial {
+		return new THREE.LineBasicMaterial({ color: 0x000000 });
+	}
+
 	function loadFromMeshData(data: MeshData) {
-		const hasFaces = data.positions.length > 0 && data.indices.length > 0;
+		const parts = data.parts ?? [];
+		const hasFaces = parts.length > 0 || (data.positions.length > 0 && data.indices.length > 0);
 		const hasLines = data.lines && data.lines.positions.length > 0 && data.lines.indices.length > 0;
 
-		// Build a Three.js Mesh to stand in for the current shape. If there are
-		// no faces (only open-wire lines), use an empty placeholder mesh so the
-		// existing view-fit logic still works via bbox of children.
-		let mesh: THREE.Mesh;
-		if (hasFaces) {
-			const geometry = new THREE.BufferGeometry();
-			geometry.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
-			if (data.normals && data.normals.length > 0) {
-				geometry.setAttribute('normal', new THREE.BufferAttribute(data.normals, 3));
+		// Build a Three.js object to stand in for the current shape: one Mesh for
+		// a monochrome model, a Group of Meshes when parts carry their own colors.
+		// If there are no faces (only open-wire lines), use an empty placeholder
+		// mesh so the existing view-fit logic still works via bbox of children.
+		let mesh: THREE.Object3D;
+		if (parts.length > 0) {
+			const group = new THREE.Group();
+			for (const part of parts) {
+				const m = new THREE.Mesh(partGeometry(part), partMaterial(part.color));
+				m.userData.alpha = part.alpha ?? 1;
+				group.add(m);
 			}
-			geometry.setIndex(new THREE.BufferAttribute(data.indices, 1));
-			if (!geometry.getAttribute('normal')) {
-				geometry.computeVertexNormals();
-			}
-			let material: THREE.MeshPhongMaterial;
-			if (data.colors) {
-				geometry.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
-				material = new THREE.MeshPhongMaterial({
-					vertexColors: true,
-					specular: 0x222222,
-					shininess: 40
-				});
-			} else {
-				const rgb = data.color ?? [1.0, 0.92, 0.3];
-				material = new THREE.MeshPhongMaterial({
-					color: new THREE.Color(rgb[0], rgb[1], rgb[2]),
-					specular: 0x222222,
-					shininess: 40
-				});
-			}
-			mesh = new THREE.Mesh(geometry, material);
 			if (data.edgePoints && data.edgePoints.length > 0) {
 				const edgeGeometry = new THREE.BufferGeometry();
 				edgeGeometry.setAttribute('position', new THREE.BufferAttribute(data.edgePoints, 3));
-				edgeLines = new THREE.LineSegments(
-					edgeGeometry,
-					new THREE.LineBasicMaterial({ color: 0x000000 })
-				);
+				group.add(new THREE.LineSegments(edgeGeometry, edgeMaterial()));
 			} else {
-				const edges = new THREE.EdgesGeometry(geometry, 10);
-				edgeLines = new THREE.LineSegments(
-					edges,
-					new THREE.LineBasicMaterial({ color: 0x000000 })
-				);
+				// No CAD edges supplied: outline each part from its own geometry.
+				for (const child of [...group.children]) {
+					if (child instanceof THREE.Mesh) {
+						group.add(new THREE.LineSegments(new THREE.EdgesGeometry(child.geometry, 10), edgeMaterial()));
+					}
+				}
 			}
-			mesh.add(edgeLines);
+			mesh = group;
+		} else if (hasFaces) {
+			const geometry = partGeometry(data);
+			if (data.colors) {
+				geometry.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
+			}
+			const single = new THREE.Mesh(geometry, partMaterial(data.color, data.colors));
+			if (data.edgePoints && data.edgePoints.length > 0) {
+				const edgeGeometry = new THREE.BufferGeometry();
+				edgeGeometry.setAttribute('position', new THREE.BufferAttribute(data.edgePoints, 3));
+				single.add(new THREE.LineSegments(edgeGeometry, edgeMaterial()));
+			} else {
+				single.add(new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 10), edgeMaterial()));
+			}
+			mesh = single;
 		} else {
 			// No face data — create an empty mesh placeholder
 			mesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshPhongMaterial({ visible: false }));

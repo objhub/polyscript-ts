@@ -24,10 +24,11 @@ import {
   importBREP as _importBREP,
   exportGLTFBuffer,
   tessellate as _tessellate,
+  edgeSegments as _edgeSegments,
+  colorParts,
 } from '@polyscript/core/ocp-kernel';
-import type { ExportOptions, TessellationMesh } from '@polyscript/core/ocp-kernel';
+import type { ExportOptions, TessellationMesh, TessellateOptions, ColorPart } from '@polyscript/core/ocp-kernel';
 import type { OC, Shape, Wire, WpState } from '@polyscript/core/ocp-kernel';
-import { mergeColorMaps } from '@polyscript/core/ocp-kernel';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -47,8 +48,9 @@ export interface BuildResult {
   shape: Shape | null;
   /** Color hint from the source (RGB 0..1), if set. */
   color?: [number, number, number];
-  /** Per-shape color map (RGBA 0..1) for colored export. */
-  colorMap: Map<Shape, [number, number, number, number]>;
+  /** The shape split by color (see colorParts in core). One part when the
+   *  model is monochrome; pass to exportGLTF / tessellate per part. */
+  parts: ColorPart[];
   /** Errors collected across all phases. */
   errors: BuildError[];
   /** Declared @param annotations found in the source. */
@@ -114,7 +116,7 @@ export class PolyScriptEngine {
       } else {
         errors.push({ phase: 'parse', message: String(e) });
       }
-      return { shape: null, colorMap: new Map(), errors, params: [], parameterSets: {}, profile: undefined, success: false };
+      return { shape: null, parts: [], errors, params: [], parameterSets: {}, profile: undefined, success: false };
     }
 
     // 2. Validate
@@ -154,7 +156,7 @@ export class PolyScriptEngine {
       }
       return {
         shape: null,
-        colorMap: new Map(),
+        parts: [],
         errors,
         params: paramSet.params,
         parameterSets: paramSet.parameterSets,
@@ -164,13 +166,13 @@ export class PolyScriptEngine {
     }
 
     // 5. Extract shape, color, and open wires from evaluation result
-    const { shape, color, colorMap, openWires } = this.extractShapeAndColor(result);
+    const { shape, color, parts, openWires } = this.extractShapeAndColor(result);
     const lineMesh = this.tessellateWires(openWires);
     if (!shape && !lineMesh) {
       errors.push({ phase: 'export', message: 'No shape produced' });
       return {
         shape: null,
-        colorMap: new Map(),
+        parts: [],
         errors,
         params: paramSet.params,
         parameterSets: paramSet.parameterSets,
@@ -182,7 +184,7 @@ export class PolyScriptEngine {
     return {
       shape,
       color,
-      colorMap,
+      parts,
       errors,
       params: paramSet.params,
       parameterSets: paramSet.parameterSets,
@@ -222,11 +224,13 @@ export class PolyScriptEngine {
   }
 
   /** Tessellate a Shape into positions, normals, and indices arrays. */
-  tessellate(
-    shape: Shape,
-    options?: Pick<ExportOptions, 'linearDeflection' | 'angularDeflection'>,
-  ): TessellationMesh {
+  tessellate(shape: Shape, options?: TessellateOptions): TessellationMesh {
     return _tessellate(this.oc, shape, options);
+  }
+
+  /** CAD edges of a Shape as line-segment pairs (see tessellate's edgePoints). */
+  edgeSegments(shape: Shape, deflection?: number): Float32Array {
+    return _edgeSegments(this.oc, shape, deflection);
   }
 
   // -----------------------------------------------------------------------
@@ -274,68 +278,40 @@ export class PolyScriptEngine {
   private extractShapeAndColor(value: unknown): {
     shape: Shape | null;
     color?: [number, number, number];
-    colorMap: Map<Shape, [number, number, number, number]>;
+    parts: ColorPart[];
     openWires: Wire[];
   } {
     const allOpenWires: Wire[] = [];
+    const states: WpState[] = Array.isArray(value)
+      ? (value as unknown[]).filter((v): v is WpState => !!v && typeof v === 'object' && 'shape' in v)
+      : value && typeof value === 'object' && 'shape' in value
+        ? [value as WpState]
+        : [];
 
-    // Multiple top-level shapes: fuse them and merge colorMaps
-    if (Array.isArray(value) && value.length > 0 && value[0] && typeof value[0] === 'object' && 'shape' in value[0]) {
-      const wpStates = value as WpState[];
-      let fusedShape: Shape | null = null;
-      let mergedColorMap: Map<Shape, [number, number, number, number]> | undefined;
-      let firstColor: [number, number, number] | undefined;
+    // Top-level shapes are implicitly unioned into one result (as the CLI's
+    // resultShape does). Colors are resolved per top-level state *before*
+    // fusing, since fusing produces new handles; a part stays a separate
+    // part only in `parts`, the fused `shape` is what gets exported as STL.
+    let fusedShape: Shape | null = null;
+    let firstColor: [number, number, number] | undefined;
+    const parts: ColorPart[] = [];
 
-      for (const wp of wpStates) {
-        const { shape: wiresShape, openWires } = this.shapeAndLinesFromWires(wp.wires);
-        allOpenWires.push(...openWires);
-        let wpShape = wp.shape ?? wiresShape;
-        if (wp.shape && wiresShape) {
-          wpShape = this.oc.makeCompound([wp.shape, wiresShape]);
-        }
-        if (!wpShape) continue;
-
-        // Collect color info into colorMap before fusing
-        if (wp.color) {
-          const alpha = wp.alpha ?? 1.0;
-          const entryMap = new Map<Shape, [number, number, number, number]>();
-          entryMap.set(wpShape, [wp.color[0], wp.color[1], wp.color[2], alpha]);
-          mergedColorMap = mergeColorMaps(mergedColorMap, entryMap);
-        }
-        mergedColorMap = mergeColorMaps(mergedColorMap, wp.colorMap);
-
-        if (!firstColor && wp.color) firstColor = wp.color;
-
-        if (!fusedShape) {
-          fusedShape = wpShape;
-        } else {
-          fusedShape = this.oc.fuse(fusedShape, wpShape);
-        }
-      }
-
-      const colorMap = mergedColorMap ? new Map(mergedColorMap) : new Map<Shape, [number, number, number, number]>();
-      return { shape: fusedShape, color: firstColor, colorMap, openWires: allOpenWires };
-    }
-
-    // Single WpState
-    if (value && typeof value === 'object' && 'shape' in value) {
-      const wp = value as WpState;
-      const colorMap = wp.colorMap
-        ? new Map(wp.colorMap)
-        : new Map<Shape, [number, number, number, number]>();
+    for (const wp of states) {
       const { shape: wiresShape, openWires } = this.shapeAndLinesFromWires(wp.wires);
       allOpenWires.push(...openWires);
-      let shape = wp.shape ?? wiresShape;
+      if (wp.shape) parts.push(...colorParts(this.oc, wp, wp.shape));
+      if (wiresShape) parts.push({ shape: wiresShape, color: wp.color, alpha: wp.alpha });
+
+      let wpShape = wp.shape ?? wiresShape;
       if (wp.shape && wiresShape) {
-        shape = this.oc.makeCompound([wp.shape, wiresShape]);
+        wpShape = this.oc.makeCompound([wp.shape, wiresShape]);
       }
-      if (shape && wp.color && !colorMap.has(shape)) {
-        const alpha = wp.alpha ?? 1.0;
-        colorMap.set(shape, [wp.color[0], wp.color[1], wp.color[2], alpha]);
-      }
-      return { shape, color: wp.color, colorMap, openWires: allOpenWires };
+      if (!wpShape) continue;
+      if (!firstColor && wp.color) firstColor = wp.color;
+      fusedShape = fusedShape ? this.oc.fuse(fusedShape, wpShape) : wpShape;
     }
-    return { shape: null, colorMap: new Map(), openWires: allOpenWires };
+
+    return { shape: fusedShape, color: firstColor, parts, openWires: allOpenWires };
   }
 
   /**
@@ -422,5 +398,5 @@ export class PolyScriptEngine {
 
 export type { ParamInfo, ParamSet };
 export type { Profile, ProfileEntry } from '@polyscript/core';
-export type { ExportOptions, TessellationMesh } from '@polyscript/core/ocp-kernel';
+export type { ExportOptions, TessellationMesh, TessellateOptions, ColorPart } from '@polyscript/core/ocp-kernel';
 export type { Shape } from '@polyscript/core/ocp-kernel';

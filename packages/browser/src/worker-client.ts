@@ -10,17 +10,13 @@
  */
 
 import type { BuildError } from './index.js';
-import type { WorkerRequest, WorkerResponse } from './worker-entry.js';
+import type { WorkerRequest, WorkerResponse, WorkerMesh, WorkerMeshPart } from './worker-entry.js';
+
+export type { WorkerMesh, WorkerMeshPart };
 
 export interface WorkerBuildResult {
   ok: boolean;
-  mesh?: {
-    positions: Float32Array;
-    normals: Float32Array;
-    indices: Uint32Array;
-    edgePoints?: Float32Array;
-    lines?: { positions: Float32Array; indices: Uint32Array };
-  };
+  mesh?: WorkerMesh;
   color?: [number, number, number];
   volume?: number;
   errors: BuildError[];
