@@ -29,6 +29,8 @@ export interface WorkerBuildResult {
   profile?: { entries: { name: string; values: Record<string, any> }[] };
 }
 
+export type BuildRequestOptions = { overrides?: Record<string, unknown>; imports?: Record<string, string> };
+
 export interface WorkerExportResult {
   ok: boolean;
   data?: ArrayBuffer | string;
@@ -44,7 +46,16 @@ export class PolyWorker {
   private pending = new Map<number, { resolve: (v: WorkerResponse) => void; reject: (e: Error) => void }>();
   private initPromise: Promise<void> | null = null;
   private _ready = false;
-  private pendingBuildIds = new Set<number>();
+  /** The build the worker is executing right now, if any. */
+  private buildInFlight: Promise<void> | null = null;
+  /** At most one build waits behind the in-flight one; a newer request
+   *  replaces it. See build(). */
+  private queuedBuild: {
+    code: string;
+    options?: BuildRequestOptions;
+    resolve: (v: WorkerBuildResult) => void;
+    reject: (e: Error) => void;
+  } | null = null;
 
   /**
    * @param workerUrl  URL or Worker instance for the worker script
@@ -94,25 +105,35 @@ export class PolyWorker {
   }
 
   /** Build code and return tessellated mesh.
-   *  Cancels any previously pending build request. */
-  async build(
-    code: string,
-    options?: { overrides?: Record<string, unknown>; imports?: Record<string, string> },
-  ): Promise<WorkerBuildResult> {
-    await this.init();
-    // Cancel previous pending build requests (stale results)
-    for (const id of this.pendingBuildIds) {
-      const entry = this.pending.get(id);
-      if (entry) {
-        this.pending.delete(id);
-        entry.reject(new Error('Build superseded'));
-      }
+   *
+   *  Builds are coalesced: the worker is single-threaded and synchronous, so
+   *  a request posted while one is running would queue behind it and run to
+   *  completion even though its result is already stale. Instead at most one
+   *  build waits; a newer call replaces the waiting one, whose promise rejects
+   *  with 'Build superseded'. Dragging a slider therefore costs one build in
+   *  flight plus one for the final value, not one per debounce tick. */
+  build(code: string, options?: BuildRequestOptions): Promise<WorkerBuildResult> {
+    return new Promise((resolve, reject) => {
+      if (this.queuedBuild) this.queuedBuild.reject(new Error('Build superseded'));
+      this.queuedBuild = { code, options, resolve, reject };
+      void this.pumpBuilds();
+    });
+  }
+
+  private async pumpBuilds(): Promise<void> {
+    if (this.buildInFlight) return;
+    while (this.queuedBuild) {
+      const job = this.queuedBuild;
+      this.queuedBuild = null;
+      this.buildInFlight = this.runBuild(job.code, job.options).then(job.resolve, job.reject);
+      await this.buildInFlight;
+      this.buildInFlight = null;
     }
-    this.pendingBuildIds.clear();
-    const buildId = this.nextId;
-    this.pendingBuildIds.add(buildId);
+  }
+
+  private async runBuild(code: string, options?: BuildRequestOptions): Promise<WorkerBuildResult> {
+    await this.init();
     const resp = await this.send({ type: 'build', code, buildOptions: options });
-    this.pendingBuildIds.delete(buildId);
     return {
       ok: resp.ok,
       mesh: resp.mesh,
@@ -147,6 +168,10 @@ export class PolyWorker {
       entry.reject(new Error('Worker terminated'));
     }
     this.pending.clear();
+    if (this.queuedBuild) {
+      this.queuedBuild.reject(new Error('Worker terminated'));
+      this.queuedBuild = null;
+    }
     this._ready = false;
   }
 
