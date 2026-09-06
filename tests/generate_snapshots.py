@@ -23,6 +23,10 @@ from datetime import datetime, timezone
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 EXAMPLES_DIR = SCRIPT_DIR / "examples"
+# リグレッション事例は教材コーパスの外に置く(tests/README.md)。両方に
+# スナップショットが必要なので、両ディレクトリを走る。
+REGRESSIONS_DIR = SCRIPT_DIR / "regressions"
+CORPUS_DIRS = [EXAMPLES_DIR, REGRESSIONS_DIR]
 SNAPSHOT_DIR = SCRIPT_DIR / "snapshots"
 
 
@@ -33,7 +37,7 @@ def generate():
     from polyscript.ocp_kernel import shape_info
 
     SNAPSHOT_DIR.mkdir(exist_ok=True)
-    poly_files = sorted(EXAMPLES_DIR.glob("*.poly"))
+    poly_files = sorted(f for d in CORPUS_DIRS if d.is_dir() for f in d.glob("*.poly"))
     count = 0
 
     for poly_file in poly_files:

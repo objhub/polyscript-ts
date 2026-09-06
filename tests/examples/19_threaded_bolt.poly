@@ -48,7 +48,6 @@ shaft = blank
 
 head = polygon 6 hr
  | extrude head_h
- | faces ">Z" | chamfer 2
- | faces "<Z" | chamfer 2
+ | faces "<Z" | chamfer 1
 
 union [head, shaft]

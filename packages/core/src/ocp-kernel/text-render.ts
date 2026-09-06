@@ -8,7 +8,7 @@
  * allowing callers to use the rectangular placeholder.
  */
 
-import type { OC, Pln, Wire } from './types.js';
+import type { OC, Pln, Wire, Face } from './types.js';
 import { to3d } from './geometry.js';
 import * as opentype from 'opentype.js';
 
@@ -226,19 +226,20 @@ function loadFont(): OpentypeFont | null {
 // ---------------------------------------------------------------------------
 
 /**
- * Convert text content to an array of closed wires on the given workplane.
+ * Render text to its glyph contours as closed wires on the given workplane,
+ * paired with the 2D contour each wire came from (for nesting tests).
  *
  * The text is rendered at `size` units height (ascender - descender = size),
  * centered horizontally and vertically about the workplane origin.
  *
  * Returns null if font loading fails (caller should fall back to placeholder).
  */
-export function textToWires(
+function textContourWires(
   oc: OC,
   content: string,
   size: number,
   plane: Pln,
-): Wire[] | null {
+): { contour: Contour; wire: Wire }[] | null {
   if (!content) return null;
 
   const font = loadFont();
@@ -271,13 +272,121 @@ export function textToWires(
   const shiftY = -(asc + desc) / 2;
 
   // Convert each contour to an occt wire
-  const wires: Wire[] = [];
+  const out: { contour: Contour; wire: Wire }[] = [];
   for (const contour of contours) {
     const wire = contourToWire(oc, contour, plane, shiftX, shiftY);
-    if (wire) wires.push(wire);
+    if (wire) out.push({ contour, wire });
   }
 
-  return wires.length > 0 ? wires : null;
+  return out.length > 0 ? out : null;
+}
+
+/**
+ * Convert text content to an array of closed wires on the given workplane,
+ * one per glyph contour (outer outlines and counters alike, unclassified).
+ *
+ * Returns null if font loading fails (caller should fall back to placeholder).
+ */
+export function textToWires(
+  oc: OC,
+  content: string,
+  size: number,
+  plane: Pln,
+): Wire[] | null {
+  const cw = textContourWires(oc, content, size, plane);
+  return cw ? cw.map(c => c.wire) : null;
+}
+
+/**
+ * Convert text content to faces on the given workplane: one face per outer
+ * glyph contour, with its counters ("O", "8", "回") attached as holes.
+ *
+ * Contours are classified by nesting depth (even-odd): a contour enclosed by
+ * an even number of others is an outline, an odd number makes it a hole of
+ * the innermost enclosing outline. Nesting is decided on the 2D outline
+ * coordinates, so it does not depend on the font's winding convention
+ * (TrueType and CFF disagree on it).
+ *
+ * Returns null if font loading fails (caller should fall back to placeholder).
+ */
+export function textToFaces(
+  oc: OC,
+  content: string,
+  size: number,
+  plane: Pln,
+): Face[] | null {
+  const cw = textContourWires(oc, content, size, plane);
+  if (!cw) return null;
+
+  const polys = cw.map(c => contourPolygon(c.contour));
+  const depth = polys.map((poly, i) => {
+    const [px, py] = poly[0];
+    let d = 0;
+    for (let j = 0; j < polys.length; j++) {
+      if (j !== i && pointInPolygon(px, py, polys[j])) d++;
+    }
+    return d;
+  });
+
+  const faces: Face[] = [];
+  for (let i = 0; i < cw.length; i++) {
+    if (depth[i] % 2 !== 0) continue;  // a hole; attached to its outline below
+    const holes: Wire[] = [];
+    for (let h = 0; h < cw.length; h++) {
+      // One level deeper and inside this outline: every other contour that
+      // encloses h also encloses i, so i is h's innermost container.
+      if (depth[h] !== depth[i] + 1) continue;
+      const [hx, hy] = polys[h][0];
+      if (pointInPolygon(hx, hy, polys[i])) holes.push(cw[h].wire);
+    }
+    faces.push(faceWithHoles(oc, cw[i].wire, holes));
+  }
+  return faces.length > 0 ? faces : null;
+}
+
+/** A face from an outline wire and its hole wires. Falls back to the plain
+ * outline (the pre-2026-09 behaviour) if the kernel refuses the holes. */
+function faceWithHoles(oc: OC, outer: Wire, holes: Wire[]): Face {
+  const face = oc.makeFace(outer);
+  if (holes.length === 0) return face;
+  try {
+    return oc.addHolesInFace(face, holes);
+  } catch {
+    return face;
+  }
+}
+
+/** Flatten a contour to a polygon for point-in-polygon tests; cubic segments
+ * are sampled at a few parameters, which is plenty for nesting decisions. */
+function contourPolygon(contour: Contour): [number, number][] {
+  const pts: [number, number][] = [];
+  for (const seg of contour.segments) {
+    pts.push(seg.start);
+    if (seg.type === 'cubic') {
+      const [p0, [x1, y1], [x2, y2], [x3, y3]] = [seg.start, ...seg.points] as [number, number][];
+      for (const t of [0.25, 0.5, 0.75]) {
+        const u = 1 - t;
+        pts.push([
+          u * u * u * p0[0] + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3,
+          u * u * u * p0[1] + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3,
+        ]);
+      }
+    }
+  }
+  return pts;
+}
+
+/** Ray-casting point-in-polygon (even-odd rule). */
+function pointInPolygon(x: number, y: number, poly: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
 }
 
 // ---------------------------------------------------------------------------

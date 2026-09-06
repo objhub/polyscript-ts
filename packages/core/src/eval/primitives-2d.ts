@@ -6,7 +6,7 @@ import type {
   Expression, NamedArg, Primitive2DExpr,
   RectExpr, CircleExpr, EllipseExpr, PolylineExpr, PolygonExpr, TextExpr,
 } from '../ast.js';
-import type { OC, WpState, Wire, Shape } from '../ocp-kernel.js';
+import type { OC, WpState, Face, Shape } from '../ocp-kernel.js';
 import {
   createWorkplane, wpWorkplane,
   wpRect, wpCircle, wpEllipse, wpPolygon, wpText, type Center2,
@@ -16,49 +16,50 @@ import { planeNormal } from '../ocp-kernel/geometry.js';
 import { applyAtPlacement, placementToPoints } from './placement.js';
 
 /**
- * Rotate wires that were newly added by a 2D primitive around the workplane normal.
- * Only rotates wires added after `prevWireCount`.
+ * Rotate faces that were newly added by a 2D primitive around the workplane normal.
+ * Only rotates faces added after `prevFaceCount`. (Every 2D primitive here is
+ * a Face; wires come from `wire [...]` and the path primitives.)
  */
-function applyAngle2D(oc: OC, state: WpState, prevWireCount: number, angleDeg: number): WpState {
-  if (angleDeg === 0 || state.wires.length <= prevWireCount) return state;
+function applyAngle2D(oc: OC, state: WpState, prevFaceCount: number, angleDeg: number): WpState {
+  if (angleDeg === 0 || state.faces.length <= prevFaceCount) return state;
   const normal = planeNormal(state.plane);
   const angleRad = angleDeg * Math.PI / 180;
-  const newWires = [...state.wires];
-  for (let i = prevWireCount; i < newWires.length; i++) {
+  const newFaces = [...state.faces];
+  for (let i = prevFaceCount; i < newFaces.length; i++) {
     // Rotate around the workplane origin (center of the primitive placement)
     const center = state.plane.origin;
-    newWires[i] = oc.rotate(
-      newWires[i],
+    newFaces[i] = oc.rotate(
+      newFaces[i],
       { point: center, direction: normal },
       angleRad,
-    ) as Wire;
+    ) as Face;
   }
-  return { ...state, wires: newWires };
+  return { ...state, faces: newFaces };
 }
 
 /**
- * Apply at-placement to newly added wires only (wires after prevWireCount).
- * Unlike applyAtPlacement, this does NOT translate shapes — only wires.
+ * Apply at-placement to newly added faces only (faces after prevFaceCount).
+ * Unlike applyAtPlacement, this does NOT translate shapes — only faces.
  * This is important when a 2D primitive with at: is used in a pipe after
  * face selection: the base shape must not be moved.
  */
-function applyAt2D(oc: OC, state: WpState, prevWireCount: number, placementVal: Value, originVal: Value | null = null): WpState {
+function applyAt2D(oc: OC, state: WpState, prevFaceCount: number, placementVal: Value, originVal: Value | null = null): WpState {
   if (Array.isArray(placementVal)) {
     const atNums = placementVal.map(v => asNumber(v));
     if (atNums.length >= 3) {
       // 3-component at: is always world coordinates (project onto face)
-      return applyAtWithWorldOrigin(oc, state, prevWireCount, [atNums[0], atNums[1], atNums[2]]);
+      return applyAtWithWorldOrigin(oc, state, prevFaceCount, [atNums[0], atNums[1], atNums[2]]);
     }
     if (atNums.length === 2 && originVal !== null) {
       if (typeof originVal === 'string' && originVal === 'world') {
         // 2-component + origin:"world": treat as world XY
-        return applyAtWithWorldOrigin(oc, state, prevWireCount, [atNums[0], atNums[1], 0]);
+        return applyAtWithWorldOrigin(oc, state, prevFaceCount, [atNums[0], atNums[1], 0]);
       }
       if (Array.isArray(originVal)) {
         // origin:(ox,oy,oz): shift workplane origin, then WP-relative center
         const ov = originVal.map(v => asNumber(v));
         const oz = ov.length > 2 ? ov[2] : 0;
-        return applyAtWithOriginAndOffset(oc, state, prevWireCount, [ov[0], ov[1], oz], atNums[0], atNums[1]);
+        return applyAtWithOriginAndOffset(oc, state, prevFaceCount, [ov[0], ov[1], oz], atNums[0], atNums[1]);
       }
     }
   }
@@ -66,53 +67,53 @@ function applyAt2D(oc: OC, state: WpState, prevWireCount: number, placementVal: 
   // Default: 2-component at: or non-tuple placement = WP-relative
   const points = placementToPoints(placementVal);
   if (points.length === 0) return state;
-  const oldWires = state.wires.slice(0, prevWireCount);
-  const newWires = state.wires.slice(prevWireCount);
+  const oldFaces = state.faces.slice(0, prevFaceCount);
+  const newFaces = state.faces.slice(prevFaceCount);
   const plane = state.plane;
   const translated: Shape[] = [];
-  for (const wire of newWires) {
+  for (const face of newFaces) {
     for (const [lx, ly] of points) {
       // Convert local 2D coordinates (lx, ly) to global displacement
       // using the workplane's xDir/yDir basis vectors
       const dx = lx * plane.xDir.x + ly * plane.yDir.x;
       const dy = lx * plane.xDir.y + ly * plane.yDir.y;
       const dz = lx * plane.xDir.z + ly * plane.yDir.z;
-      translated.push((dx !== 0 || dy !== 0 || dz !== 0) ? oc.translate(wire, dx, dy, dz) : wire);
+      translated.push((dx !== 0 || dy !== 0 || dz !== 0) ? oc.translate(face, dx, dy, dz) : face);
     }
   }
-  return { ...state, wires: [...oldWires, ...translated] };
+  return { ...state, faces: [...oldFaces, ...translated] };
 }
 
 /**
  * Apply at: with world-coordinate origin shift.
  * Redraws the 2D primitive on a new workplane whose origin is the given world point.
  */
-function applyAtWithWorldOrigin(oc: OC, state: WpState, prevWireCount: number, worldOrigin: [number, number, number]): WpState {
-  // Rebuild wires by shifting the workplane origin and redrawing at (0,0)
-  const oldWires = state.wires.slice(0, prevWireCount);
-  const newWires = state.wires.slice(prevWireCount);
+function applyAtWithWorldOrigin(oc: OC, state: WpState, prevFaceCount: number, worldOrigin: [number, number, number]): WpState {
+  // Rebuild faces by shifting the workplane origin and redrawing at (0,0)
+  const oldFaces = state.faces.slice(0, prevFaceCount);
+  const newFaces = state.faces.slice(prevFaceCount);
   // Create a workplane with the new origin
   const s = wpWorkplane(state, undefined, worldOrigin);
-  // The new wires need to be translated from the old center to the new center
+  // The new faces need to be translated from the old center to the new center
   // Calculate the 3D displacement between new and old workplane origins
   const oldOrigin = state.plane.origin;
   const newOrigin = s.plane.origin;
   const dx = newOrigin.x - oldOrigin.x;
   const dy = newOrigin.y - oldOrigin.y;
   const dz = newOrigin.z - oldOrigin.z;
-  const translated = newWires.map(w =>
-    (dx !== 0 || dy !== 0 || dz !== 0) ? oc.translate(w, dx, dy, dz) : w
+  const translated = newFaces.map(f =>
+    (dx !== 0 || dy !== 0 || dz !== 0) ? oc.translate(f, dx, dy, dz) : f
   );
-  return { ...s, wires: [...oldWires, ...translated] };
+  return { ...s, faces: [...oldFaces, ...translated] };
 }
 
 /**
  * Apply at: with origin:(ox,oy,oz) shift + WP-relative offset.
  * Sets workplane origin to (ox,oy,oz) then offsets by (lx,ly) in WP coordinates.
  */
-function applyAtWithOriginAndOffset(oc: OC, state: WpState, prevWireCount: number, worldOrigin: [number, number, number], lx: number, ly: number): WpState {
-  const oldWires = state.wires.slice(0, prevWireCount);
-  const newWires = state.wires.slice(prevWireCount);
+function applyAtWithOriginAndOffset(oc: OC, state: WpState, prevFaceCount: number, worldOrigin: [number, number, number], lx: number, ly: number): WpState {
+  const oldFaces = state.faces.slice(0, prevFaceCount);
+  const newFaces = state.faces.slice(prevFaceCount);
   const s = wpWorkplane(state, undefined, worldOrigin);
   // Calculate displacement from old origin to new origin + local offset
   const plane = s.plane;
@@ -125,10 +126,10 @@ function applyAtWithOriginAndOffset(oc: OC, state: WpState, prevWireCount: numbe
   const dx = newBase.x - oldOrigin.x;
   const dy = newBase.y - oldOrigin.y;
   const dz = newBase.z - oldOrigin.z;
-  const translated = newWires.map(w =>
-    (dx !== 0 || dy !== 0 || dz !== 0) ? oc.translate(w, dx, dy, dz) : w
+  const translated = newFaces.map(f =>
+    (dx !== 0 || dy !== 0 || dz !== 0) ? oc.translate(f, dx, dy, dz) : f
   );
-  return { ...s, wires: [...oldWires, ...translated] };
+  return { ...s, faces: [...oldFaces, ...translated] };
 }
 
 /** Parse center: value into [boolean, boolean]. */
@@ -160,7 +161,7 @@ export function eval2DPrimitive(
   expr: Primitive2DExpr,
   evalExprFn: (e: Expression) => Value,
 ): WpState {
-  const prevWireCount = state.wires.length;
+  const prevFaceCount = state.faces.length;
   const namedArgs = expr.namedArgs;
   const { centerVal } = extractNamedArgs(namedArgs, evalExprFn);
   let result: WpState;
@@ -206,10 +207,10 @@ export function eval2DPrimitive(
   // Apply angle rotation and at placement if specified
   const { angle, atVal, originVal } = extractNamedArgs(namedArgs, evalExprFn);
   if (angle !== 0) {
-    result = applyAngle2D(state.oc, result, prevWireCount, angle);
+    result = applyAngle2D(state.oc, result, prevFaceCount, angle);
   }
   if (atVal != null) {
-    result = applyAt2D(state.oc, result, prevWireCount, atVal, originVal);
+    result = applyAt2D(state.oc, result, prevFaceCount, atVal, originVal);
   }
   return result;
 }

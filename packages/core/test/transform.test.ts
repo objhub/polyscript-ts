@@ -274,19 +274,25 @@ describe('transform operations', () => {
     it('rejects floor in 2D context', () => {
       const errors = getErrors('circle 10 | floor');
       expect(errors.length).toBeGreaterThan(0);
-      expect(errors[0].message).toContain('not valid in 2D');
+      expect(errors[0].message).toContain('not valid in Face');
     });
 
     it('rejects scale in 2D context', () => {
       const errors = getErrors('circle 10 | scale 2');
       expect(errors.length).toBeGreaterThan(0);
-      expect(errors[0].message).toContain('not valid in 2D');
+      expect(errors[0].message).toContain('not valid in Face');
     });
 
-    it('rejects mirror in 2D context', () => {
-      const errors = getErrors('circle 10 | mirror "X"');
+    // mirror on 2D geometry is in-plane reflection since 2026-09-06 (SPEC
+    // ミラー); what stays rejected is a bare workplane with nothing drawn.
+    it('accepts mirror in 2D context', () => {
+      expect(getErrors('circle 10 | mirror "X"')).toHaveLength(0);
+    });
+
+    it('rejects mirror on a bare workplane', () => {
+      const errors = getErrors('box 10 10 10 | faces ">Z" | workplane | mirror "X"');
       expect(errors.length).toBeGreaterThan(0);
-      expect(errors[0].message).toContain('not valid in 2D');
+      expect(errors[0].message).toContain('not valid in Workplane');
     });
 
     it('reports missing scale factor', () => {

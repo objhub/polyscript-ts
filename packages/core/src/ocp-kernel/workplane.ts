@@ -46,6 +46,7 @@ export function createWorkplane(oc: OC, planeName: string = 'XY'): WpState {
     oc,
     plane: makePlane(oc, planeName),
     shape: null,
+    faces: [],
     wires: [],
     selectedFaces: [],
     selectedEdges: [],

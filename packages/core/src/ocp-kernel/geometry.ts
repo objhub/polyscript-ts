@@ -28,15 +28,44 @@ export function makeVec(_oc: OC, x: number, y: number, z: number): Vec {
 // Plane helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Named standard planes. `AB` reads: local x is world A, local y is world B;
+ * the normal is the historical one (XZ faces +Y, so a profile drawn on it
+ * reads correctly from the front, -Y, and extrudes toward the back).
+ * `-AB` is the same plane with the same local axes and the normal flipped:
+ * the drawing lands in the same place, only extrude/cut/hole go the other way.
+ * The reversed spellings (ZX, ZY, YX) are rejected with a pointer to the
+ * signed name -- they read as a transposition typo, and they were accepted
+ * for years while silently building XY.
+ */
+const PLANE_NAMES = ['XY', 'XZ', 'YZ', '-XY', '-XZ', '-YZ'] as const;
+const NAMED_PLANES: Record<string, { xDir: Dir; yDir: Dir; normal: Dir }> = {
+  XY: { xDir: { x: 1, y: 0, z: 0 }, yDir: { x: 0, y: 1, z: 0 }, normal: { x: 0, y: 0, z: 1 } },
+  XZ: { xDir: { x: 1, y: 0, z: 0 }, yDir: { x: 0, y: 0, z: 1 }, normal: { x: 0, y: 1, z: 0 } },
+  YZ: { xDir: { x: 0, y: 1, z: 0 }, yDir: { x: 0, y: 0, z: 1 }, normal: { x: 1, y: 0, z: 0 } },
+  '-XY': { xDir: { x: 1, y: 0, z: 0 }, yDir: { x: 0, y: 1, z: 0 }, normal: { x: 0, y: 0, z: -1 } },
+  '-XZ': { xDir: { x: 1, y: 0, z: 0 }, yDir: { x: 0, y: 0, z: 1 }, normal: { x: 0, y: -1, z: 0 } },
+  '-YZ': { xDir: { x: 0, y: 1, z: 0 }, yDir: { x: 0, y: 0, z: 1 }, normal: { x: -1, y: 0, z: 0 } },
+};
+const REVERSED_PLANES: Record<string, string> = { YX: '-XY', ZX: '-XZ', ZY: '-YZ' };
+
+/** Explain why `name` is not a plane, with the spelling the caller wanted. */
+export function invalidPlaneMessage(name: string): string {
+  const signed = REVERSED_PLANES[name];
+  const hint = signed
+    ? ` Plane names are XY, XZ, YZ; to face the other way, negate the name ('workplane ${signed}').`
+    : ` Valid names: ${PLANE_NAMES.join(', ')}.`;
+  return `workplane: unknown plane '${name}'.${hint}`;
+}
+
+export function isPlaneName(name: string): boolean {
+  return name in NAMED_PLANES;
+}
+
 export function makePlane(_oc: OC, name: string): Pln {
-  const origin: Pnt = { x: 0, y: 0, z: 0 };
-  if (name === 'XZ') {
-    return { origin, normal: { x: 0, y: 1, z: 0 }, xDir: { x: 1, y: 0, z: 0 }, yDir: { x: 0, y: 0, z: 1 } };
-  } else if (name === 'YZ') {
-    return { origin, normal: { x: 1, y: 0, z: 0 }, xDir: { x: 0, y: 1, z: 0 }, yDir: { x: 0, y: 0, z: 1 } };
-  }
-  // default XY
-  return { origin, normal: { x: 0, y: 0, z: 1 }, xDir: { x: 1, y: 0, z: 0 }, yDir: { x: 0, y: 1, z: 0 } };
+  const axes = NAMED_PLANES[name];
+  if (!axes) throw new Error(invalidPlaneMessage(name));
+  return { origin: { x: 0, y: 0, z: 0 }, ...axes };
 }
 
 export function planeOrigin(plane: Pln): Pnt {

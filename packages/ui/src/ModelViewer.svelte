@@ -6,14 +6,35 @@
 	import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 	import type { MeshData, MeshPart } from './types';
 
+	/** The B-Rep half of the info panel. Shaped like core's ShapeInfo, declared
+	 *  structurally so @polyscript/ui keeps no dependency on the kernel. */
+	export interface ShapeSummary {
+		bbox?: { min: [number, number, number]; max: [number, number, number] };
+		volume?: number;
+		area?: number;
+		solids?: number;
+		is_valid?: boolean;
+		topology?: { faces: number; edges: number; vertices: number };
+	}
+
 	interface Props {
 		meshData?: MeshData | null;
 		url?: string | null;
 		showAxes?: boolean;
 		showGrid?: boolean;
+		/** Kernel figures for the shape on screen. Absent when the viewer was
+		 *  handed a GLB (a URL): the mesh is all there is then, and the panel
+		 *  shows only the mesh half. */
+		info?: ShapeSummary | null;
 	}
 
-	let { meshData = null, url = null, showAxes = true, showGrid: showGridProp = true }: Props = $props();
+	let {
+		meshData = null,
+		url = null,
+		showAxes = true,
+		showGrid: showGridProp = true,
+		info = null
+	}: Props = $props();
 
 	let container: HTMLDivElement = $state(undefined as unknown as HTMLDivElement);
 	let renderer: THREE.WebGLRenderer | null = null;
@@ -29,6 +50,11 @@
 	let webglError = $state(false);
 	let mounted = $state(false);
 	let edgeOnly = $state(false);
+	let showInfo = $state(false);
+	/** Counted from the geometry actually on screen, so it works for a GLB too.
+	 *  These are tessellation figures and deliberately labelled apart from the
+	 *  B-Rep ones: a box has 8 CAD vertices and 24 mesh vertices. */
+	let meshStats = $state<{ triangles: number; vertices: number } | null>(null);
 	let showAxisState = $state(true);
 	let showGridState = $state(true);
 	let hasLoadedOnce = false;
@@ -101,12 +127,38 @@
 			}
 		});
 		currentMesh = null;
+		meshStats = null;
+	}
+
+	/** Four significant-ish digits without exponents: these are millimetres and
+	 *  cubic millimetres, and 1802.7 reads better than 1802.7135009765625. */
+	function fmt(n: number): string {
+		const abs = Math.abs(n);
+		if (abs >= 1000) return n.toFixed(0);
+		if (abs >= 1) return n.toFixed(1);
+		return n.toPrecision(2);
+	}
+
+	function countMesh(root: THREE.Object3D): { triangles: number; vertices: number } {
+		let triangles = 0;
+		let vertices = 0;
+		root.traverse((child) => {
+			if (!(child instanceof THREE.Mesh)) return;
+			const geo = child.geometry as THREE.BufferGeometry;
+			const pos = geo.getAttribute('position');
+			if (!pos) return;
+			vertices += pos.count;
+			const index = geo.getIndex();
+			triangles += (index ? index.count : pos.count) / 3;
+		});
+		return { triangles: Math.round(triangles), vertices };
 	}
 
 	function loadMesh(mesh: THREE.Object3D) {
 		if (!scene) return;
 		removeMesh();
 		currentMesh = mesh;
+		meshStats = countMesh(mesh);
 		scene.add(mesh);
 		if (!hasLoadedOnce) {
 			fitCamera(mesh);
@@ -365,46 +417,49 @@ ${lines}</g>
 </svg>`;
 	}
 
-	export function screenshot(): Promise<Blob> {
-		return new Promise((resolve, reject) => {
-			if (!renderer) {
-				reject(new Error('Renderer not ready'));
-				return;
-			}
-			renderer.domElement.toBlob(
-				(blob) => {
-					if (blob) resolve(blob);
-					else reject(new Error('Failed to capture screenshot'));
-				},
-				'image/png'
-			);
-		});
-	}
-
-	async function takeScreenshot(): Promise<void> {
-		if (!renderer || !scene || !camera) return;
+	/**
+	 * PNG of the model as the camera currently frames it, without the grid and
+	 * the axes.
+	 *
+	 * Those two are viewing aids, not part of the model, and every consumer of
+	 * this wants the model: the download menus in both apps, and the thumbnail
+	 * objhub uploads with a save. It used to read the canvas as-is, which
+	 * captured whatever the last frame happened to contain -- grid lines
+	 * included -- so the toolbar's camera button had its own cleaner copy of
+	 * this code. One implementation now, and the two agree.
+	 */
+	export async function screenshot(): Promise<Blob> {
+		if (!renderer || !scene || !camera) {
+			throw new Error('Renderer not ready');
+		}
 
 		const gridWas = gridHelper?.visible ?? false;
 		const axisWas = axisHelper?.visible ?? false;
-
 		if (gridHelper) gridHelper.visible = false;
 		if (axisHelper) axisHelper.visible = false;
 
-		renderer.clear();
-		renderer.render(scene, camera);
+		try {
+			renderer.clear();
+			renderer.render(scene, camera);
+			return await new Promise<Blob>((resolve, reject) => {
+				renderer!.domElement.toBlob(
+					(b) => {
+						if (b) resolve(b);
+						else reject(new Error('Failed to capture screenshot'));
+					},
+					'image/png'
+				);
+			});
+		} finally {
+			// Restored even on failure: leaving the grid hidden would look like
+			// the toggle stopped working.
+			if (gridHelper) gridHelper.visible = gridWas;
+			if (axisHelper) axisHelper.visible = axisWas;
+		}
+	}
 
-		const blob = await new Promise<Blob>((resolve, reject) => {
-			renderer!.domElement.toBlob(
-				(b) => {
-					if (b) resolve(b);
-					else reject(new Error('Failed to capture screenshot'));
-				},
-				'image/png'
-			);
-		});
-
-		if (gridHelper) gridHelper.visible = gridWas;
-		if (axisHelper) axisHelper.visible = axisWas;
+	async function takeScreenshot(): Promise<void> {
+		const blob = await screenshot();
 
 		const now = new Date();
 		const pad = (n: number) => String(n).padStart(2, '0');
@@ -431,6 +486,13 @@ ${lines}</g>
 			<button class="tb-btn" class:active={edgeOnly} onclick={toggleEdgeOnly} title="Edge only">&#x25C7;</button>
 			<button class="tb-btn" class:active={showAxisState} onclick={toggleAxis} title="Axes">&#x22B9;</button>
 			<button class="tb-btn" class:active={showGridState} onclick={toggleGrid} title="Grid">&#x229E;</button>
+			<button
+				class="tb-btn"
+				class:active={showInfo}
+				onclick={() => (showInfo = !showInfo)}
+				title="Model info"
+				aria-pressed={showInfo}
+			>&#x24D8;</button>
 			<button class="tb-btn" onclick={takeScreenshot} title="Screenshot">
 				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<rect x="2" y="7" width="20" height="14" rx="2"/>
@@ -439,6 +501,38 @@ ${lines}</g>
 				</svg>
 			</button>
 		</div>
+
+		{#if showInfo && (info || meshStats)}
+			<div class="viewer-info">
+				{#if info?.bbox}
+					<div class="info-row">
+						<span>Size</span>
+						<b>{fmt(info.bbox.max[0] - info.bbox.min[0])} × {fmt(info.bbox.max[1] - info.bbox.min[1])} × {fmt(info.bbox.max[2] - info.bbox.min[2])}</b>
+					</div>
+				{/if}
+				{#if info?.volume !== undefined}
+					<div class="info-row"><span>Volume</span><b>{fmt(info.volume)}</b></div>
+				{/if}
+				{#if info?.area !== undefined}
+					<div class="info-row"><span>Area</span><b>{fmt(info.area)}</b></div>
+				{/if}
+				{#if info?.topology}
+					<div class="info-row"><span>Face / Edge / Vert</span><b>{info.topology.faces} / {info.topology.edges} / {info.topology.vertices}</b></div>
+				{/if}
+				{#if info?.solids !== undefined}
+					<div class="info-row"><span>Solids</span><b>{info.solids}</b></div>
+				{/if}
+				{#if info?.is_valid === false}
+					<div class="info-row invalid"><span>Validity</span><b>invalid</b></div>
+				{/if}
+				{#if meshStats}
+					<div class="info-row mesh">
+						<span>Mesh tri / vert</span>
+						<b>{meshStats.triangles.toLocaleString()} / {meshStats.vertices.toLocaleString()}</b>
+					</div>
+				{/if}
+			</div>
+		{/if}
 	</div>
 {/if}
 
@@ -484,6 +578,38 @@ ${lines}</g>
 	.tb-btn.active {
 		background: #e6fffa;
 		color: #319795;
+	}
+	/* Opposite corner from the toolbar so it never covers the controls. */
+	.viewer-info {
+		position: absolute;
+		bottom: 6px;
+		left: 6px;
+		z-index: 10;
+		min-width: 168px;
+		padding: 6px 8px;
+		border-radius: 6px;
+		background: rgba(255, 255, 255, 0.9);
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+		font-size: 11px;
+		line-height: 1.6;
+		color: #4a5568;
+		font-variant-numeric: tabular-nums;
+	}
+	.info-row {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.info-row span {
+		color: #a0aec0;
+	}
+	.info-row.mesh {
+		margin-top: 3px;
+		padding-top: 3px;
+		border-top: 1px solid #e2e8f0;
+	}
+	.info-row.invalid b {
+		color: #e53e3e;
 	}
 	.fallback {
 		display: flex;

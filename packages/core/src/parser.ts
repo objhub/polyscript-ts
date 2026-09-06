@@ -12,6 +12,7 @@ import { SOURCE_COMMANDS, KEYWORDS, SELECTOR_ALIASES } from './ast.js';
 import { TokenType, type Token, Lexer } from './lexer.js';
 import { preprocess } from './preprocessor.js';
 import { stripProfileBlock } from './profile.js';
+import { isPlaneName, invalidPlaneMessage } from './ocp-kernel/geometry.js';
 
 export class ParseError extends Error {
   line: number;
@@ -73,8 +74,6 @@ const PIPE_3D_PRIMITIVES: Record<string, string> = {
   cone: 'ConeExpr', torus: 'TorusExpr', wedge: 'WedgeExpr',
 };
 
-// Valid workplane plane names (accepted as bare-word identifiers)
-const WORKPLANE_NAMES = new Set(['XY', 'XZ', 'YZ', 'ZX', 'ZY', 'YX']);
 
 export class Parser {
   private tokens: Token[];
@@ -391,7 +390,10 @@ export class Parser {
     if (this.isSourceCommand()) {
       source = this.parseSourceExpr();
     } else if (this.match(TokenType.LParen) && this.looksLikePipeParen()) {
-      source = this.parseParenPipeExpr();
+      // (pipeline) as source. parseExpr reaches parseParenPipeExpr through
+      // parseAtomExpr, and also picks up shape operators chained after the
+      // group: `(box 10 10 10) - (cylinder 3 20) | fillet 1`.
+      source = this.parseExpr();
     } else if (this.match(TokenType.Identifier) && this.peek(1).type === TokenType.LParen) {
       // name(args) — paren-style function call. Use parseExpr so binary
       // operators chained after the call (e.g. `f(a) + g(b)` in a `def`
@@ -500,19 +502,27 @@ export class Parser {
   }
 
   /**
-   * Parse workplane arguments, accepting bare-word plane names (XY, XZ, YZ, etc.)
-   * as well as normal greedy args (strings, etc.).
-   * Invalid bare-word identifiers (e.g. workplane ABC) produce a parse error.
+   * Parse workplane arguments, accepting bare-word plane names (XY, XZ, YZ)
+   * and their negations (-XY: same plane, normal flipped) as well as normal
+   * greedy args (strings, etc.). `-` must touch the name: `workplane - XY`
+   * is not a plane. Invalid bare-word identifiers (e.g. workplane ABC, or
+   * the reversed spelling ZX) produce a parse error.
    */
   private parseWorkplaneArgs(): { args: Expression[]; namedArgs: NamedArg[] } {
     const token = this.current();
-    if (token.type === TokenType.Identifier && this.peek(1).type !== TokenType.Colon) {
-      // Bare-word identifier — validate it as a plane name
-      if (!WORKPLANE_NAMES.has(token.value)) {
-        throw this.error(`Invalid workplane name '${token.value}'. Valid names: XY, XZ, YZ, ZX, ZY, YX`);
-      }
+    let nameToken = token;
+    let name = token.value;
+    if (token.type === TokenType.Minus && this.peek(1).type === TokenType.Identifier
+        && this.peek(1).line === token.line && this.peek(1).column === token.column + 1) {
+      nameToken = this.peek(1);
+      name = `-${nameToken.value}`;
+    }
+    if (nameToken.type === TokenType.Identifier && this.peek(nameToken === token ? 1 : 2).type !== TokenType.Colon) {
+      // Bare-word identifier -- validate it as a plane name
+      if (!isPlaneName(name)) throw this.error(invalidPlaneMessage(name));
+      if (nameToken !== token) this.advance(); // consume '-'
       this.advance();
-      const planeLit: Expression = { type: 'StringLit', value: token.value, loc: this.loc(token) };
+      const planeLit: Expression = { type: 'StringLit', value: name, loc: this.loc(token) };
       // Parse remaining named args (e.g. origin:...)
       const { args: restArgs, namedArgs } = this.parseGreedyArgs();
       return { args: [planeLit, ...restArgs], namedArgs };

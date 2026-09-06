@@ -1,3 +1,15 @@
+/** One row of the download menu. `id` is passed back to the host, which owns
+ *  the actual export -- the menu knows nothing about formats. */
+export interface DownloadItem {
+	id: string;
+	/** Format name, e.g. "STL". */
+	label: string;
+	/** One short line saying what the file is for. */
+	hint?: string;
+	/** Not producible right now (nothing built, no viewer, ...). */
+	disabled?: boolean;
+}
+
 export interface MeshPart {
 	positions: Float32Array;
 	normals: Float32Array;

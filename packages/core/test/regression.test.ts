@@ -28,6 +28,25 @@ import type { OC, Shape } from '../src/ocp-kernel/types.js';
 
 const SNAPSHOTS_DIR = path.resolve(__dirname, '../../../tests/snapshots');
 const EXAMPLES_DIR = path.resolve(__dirname, '../../../tests/examples');
+// Regression cases live apart from the teaching corpus: examples/ is the
+// gallery live shows to people learning the language (its symlink lists that
+// directory), and a file whose whole point is "this used to be wrong" does not
+// belong there. Snapshots stay flat and named after the file, so both
+// directories are searched for the .poly a snapshot names.
+const REGRESSIONS_DIR = path.resolve(__dirname, '../../../tests/regressions');
+const CORPUS_DIRS = [EXAMPLES_DIR, REGRESSIONS_DIR];
+
+/** The corpus directory holding `filename`. Throws rather than skipping: a
+ *  snapshot whose .poly cannot be found is a broken pair, not a pass. */
+function resolveCorpusFile(filename: string): string {
+  for (const dir of CORPUS_DIRS) {
+    const candidate = path.join(dir, filename);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  throw new Error(
+    `${filename}: no .poly in ${CORPUS_DIRS.join(' or ')} (snapshot without a source file)`,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Load snapshots
@@ -159,7 +178,7 @@ describe.skipIf(!process.env.EXAMPLE)('B-Rep regression (vs Python snapshots)', 
     // known-failing case: a divergence from the Python oracle is either a bug
     // to fix or a snapshot to regenerate, never a test left red.
     it(filename, () => {
-      const filePath = path.join(EXAMPLES_DIR, filename);
+      const filePath = resolveCorpusFile(filename);
       const source = fs.readFileSync(filePath, 'utf-8');
       const shape = evaluateAndGetShape(oc, source, importResolver);
       expect(shape, `${filename}: evaluator returned no shape`).not.toBeNull();

@@ -36,9 +36,11 @@ Python実装とTypeScript実装が同じスナップショットを共有し、�
 
 ```
 polyscript-ts/tests/
-  examples/                  # 例題コーパス(26件)。live のギャラリーもここを参照する
+  examples/                  # 教材コーパス(25件)。live のギャラリーもここを参照する
     01_simple_box.poly
     ...
+  regressions/               # リグレッション事例。ギャラリーには出さない
+    faces_reset.poly
   snapshots/                 # 凍結ゴールデンデータ(Python OCP 7.9.3 生成)
     meta.json                #   凍結メタデータ(frozen/oracle/tolerance)
     01_simple_box.poly.json  #   example ファイル毎のスナップショット
@@ -57,6 +59,30 @@ polyscript-ts/tests/
 
 `live` 側は `public/example` をこのディレクトリへのシンボリックリンクとして
 参照します。
+
+## examples と regressions を分ける理由 (2026-09-04)
+
+`examples/` は **言語を学ぶ人に見せる教材**です。live のギャラリーはこの
+ディレクトリをそのまま列挙する(シンボリックリンク + `virtual:examples` の
+`/^\d\d_.*\.poly$/`)ので、ここに置いたものは学習者の目に触れます。
+
+「以前これが壊れていた」ことを示すための最小再現コードは教材にならないので、
+`regressions/` に分けます。番号プレフィックスも外します(並び順が意味を持つのは
+ギャラリーだけ)。移動第一号は `24_faces_reset.poly` →
+`regressions/faces_reset.poly` (2026-09-04)。
+
+**スナップショットは `snapshots/` にフラットなまま置きます**。テストは
+`snapshots/*.poly.json` を列挙してから対応する `.poly` を探す作りなので、
+スナップショットを階層化すると列挙から漏れて**カバレッジが黙って消えます**。
+代わりに `.poly` の探索側が両ディレクトリを見ます:
+
+- `packages/core/test/regression.test.ts` — `resolveCorpusFile()`
+- `tests/binary_check.ts` — `corpusDirOf()`
+- `tests/generate_snapshots.ts` / `.py` — `CORPUS_DIRS`
+- `Makefile` — `CORPUS = $(EXAMPLES) $(REGRESSIONS)`
+
+いずれも「スナップショットはあるが `.poly` が無い」を**エラーにします**。
+スキップにすると、ファイルを移し忘れたときにテストが緑のまま消えます。
 
 TypeScript 版の照合は `packages/core/test/regression.test.ts`
 (`snapshots/` と `examples/` を直接読む)。

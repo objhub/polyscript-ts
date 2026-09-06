@@ -30,7 +30,7 @@
     "vitest": "^3.0.0"
   },
   "dependencies": {
-    "occt-wasm": "https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps1/occt-wasm-4.3.2-ps1.tgz",
+    "occt-wasm": "https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps2/occt-wasm-4.3.2-ps2.tgz",
     "opentype.js": "^1.3.4"
   }
 }

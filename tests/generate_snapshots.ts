@@ -30,6 +30,11 @@ import { spawnSync } from 'node:child_process';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const EXAMPLES_DIR = join(HERE, 'examples');
+// Regression cases live outside the teaching corpus (see tests/README.md).
+// Both directories need snapshots, so both are walked and a named file is
+// looked up in either.
+const REGRESSIONS_DIR = join(HERE, 'regressions');
+const CORPUS_DIRS = [EXAMPLES_DIR, REGRESSIONS_DIR];
 const SNAPSHOT_DIR = join(HERE, 'snapshots');
 const POLY = process.env.POLY ?? join(HERE, '..', 'packages', 'cli', 'dist', 'bin', 'poly');
 
@@ -77,10 +82,21 @@ function snapshotFor(polyFile: string): unknown {
   };
 }
 
+function corpusPath(name: string): string {
+  const hit = CORPUS_DIRS.find(dir => existsSync(join(dir, name)));
+  if (!hit) {
+    console.error(`${name}: no .poly in ${CORPUS_DIRS.join(' or ')}`);
+    process.exit(1);
+  }
+  return join(hit, name);
+}
+
 const requested = process.argv.slice(2);
 const files = (requested.length
-  ? requested.map(f => join(EXAMPLES_DIR, basename(f)))
-  : readdirSync(EXAMPLES_DIR).filter(f => f.endsWith('.poly')).sort().map(f => join(EXAMPLES_DIR, f)));
+  ? requested.map(f => corpusPath(basename(f)))
+  : CORPUS_DIRS.filter(existsSync).flatMap(dir =>
+      readdirSync(dir).filter(f => f.endsWith('.poly')).sort().map(f => join(dir, f)),
+    ));
 
 let written = 0;
 for (const f of files) {

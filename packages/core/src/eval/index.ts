@@ -26,14 +26,12 @@ import type { WpState, OC, Pln, Shape } from '../ocp-kernel.js';
 import {
   wpWorkplane, wpTag, createWorkplane, makeHelixWire,
   makeLineWire, makeArcWire, makeCenterArcWire, computeCenterArcMidpoint,
-  makeBezierWire, makeWireFromPoints, wpPushPoints,
+  makeBezierWire, makeWireFromPoints, makeFaceFromWire, wpPushPoints,
   computeCenterFromRadius, to3d, makePlane,
-  wpUnion, wpDiff, wpInter,
 } from '../ocp-kernel.js';
 import { ensureSolid } from '../ocp-kernel/geometry.js';
 import { colorParts } from '../ocp-kernel/color-parts.js';
 import type { ColorPart } from '../ocp-kernel/color-parts.js';
-import { mergeColorMaps } from '../ocp-kernel/types.js';
 
 // Re-export types and helpers
 export {
@@ -49,7 +47,7 @@ export {
 import {
   type Value, type UserFunc,
   Environment, EvalError, MATH_FUNCS,
-  asNumber, asString, asWpState, isWpState, isUserFunc,
+  asNumber, asString, asWpState, isWpState, isUserFunc, describeValue,
   resolveNamedArgs, getNamedNum,
 } from './types.js';
 
@@ -58,13 +56,14 @@ import { evalBox, evalCylinder, evalSphere, evalCone, evalTorus, evalWedge, eval
 import { eval2DPrimitive, evalRect, evalCircle, evalEllipse, evalPolyline, evalPolygon, evalText } from './primitives-2d.js';
 import { evalFacesSelect, evalEdgesSelect, evalVertsSelect, evalPointsSelect } from './pipe-selection.js';
 import { evalFilletOp, evalChamferOp, evalShellOp, evalOffsetOp } from './pipe-modifiers.js';
-import { evalDiffOp, evalUnionOp, evalInterOp } from './pipe-boolean.js';
+import { evalDiffOp, evalUnionOp, evalInterOp, applyBoolean, toolStatesOf, isShapeOperand, type BooleanKind } from './pipe-boolean.js';
 import { evalTranslateOp, evalRotateOp, evalScaleOp, evalMoveOp, evalMoveToOp, evalMirrorOp, evalFloorOp } from './pipe-transform.js';
 import { evalExtrudeOp, evalRevolveOp, evalSweepOp, evalLoftOp, evalCutOp, evalHoleOp, evalFaceHoleOp } from './pipe-extrusion.js';
 import { applyAtPlacement, placementToPoints, evalGridPipe, evalPolarPipe, gridPoints, polarPoints } from './placement.js';
 import { evalColorOp } from './pipe-color.js';
 
-import { type PipelineContext, nextContext } from '../context.js';
+import { type PipelineContext, nextContext, static2DType, shapeOperatorKind, OP_KEYWORD } from '../context.js';
+import { replaneTo } from '../ocp-kernel/faces.js';
 
 // ---------------------------------------------------------------------------
 // Selector mapping: PolyScript selector notation -> CadQuery selector string
@@ -389,6 +388,15 @@ export class Evaluator {
     const left = this.evalExpr(node.left);
     const right = this.evalExpr(node.right);
 
+    // Shape operators: `a + b` union, `a - b` diff, `a * b` inter. Same
+    // semantics as the pipe ops (a list operand folds, an empty tool is a
+    // no-op). The parser's greedy argument rule means these only work between
+    // atoms -- variables and parenthesised expressions -- never right after a
+    // command's arguments (`box 10 10 10 - x` is `box 10 10 (10 - x)`).
+    if (isShapeOperand(left) || isShapeOperand(right)) {
+      return this.evalShapeBinOp(node, left, right);
+    }
+
     // String concatenation
     if (node.op === '+' && (typeof left === 'string' || typeof right === 'string')) {
       return String(left) + String(right);
@@ -437,6 +445,34 @@ export class Evaluator {
       case '**': return l ** r;
       default:
         throw new EvalError(`Unknown operator: ${node.op}`);
+    }
+  }
+
+  private evalShapeBinOp(node: BinOp, left: Value, right: Value): Value {
+    const kind = shapeOperatorKind(node.op);
+    if (!kind) {
+      throw new EvalError(
+        `'${node.op}' is not defined for shapes. Shapes support '+' (union), '-' (diff) and '*' (inter)`,
+        node.loc,
+      );
+    }
+    if (!isWpState(left)) {
+      throw new EvalError(
+        `Type error: left operand of '${node.op}' must be a shape, got ${describeValue(left)}`,
+        node.loc,
+      );
+    }
+    if (!isShapeOperand(right)) {
+      throw new EvalError(
+        `Type error: right operand of '${node.op}' must be a shape or a list of shapes, got ${describeValue(right)}`,
+        node.loc,
+      );
+    }
+    try {
+      return applyBoolean(left, toolStatesOf(right, kind), kind);
+    } catch (e) {
+      if (e instanceof Error && !(e instanceof EvalError)) throw new EvalError(e.message, node.loc);
+      throw e;
     }
   }
 
@@ -766,13 +802,15 @@ export class Evaluator {
       edges.push(this.oc.makeLineEdge(currentPt, startPt));
     }
 
+    // A sketch is a Face literal: the closed outline becomes a region.
     const wire = this.oc.makeWire(edges);
     const wp = createWorkplane(this.oc);
-    return { ...wp, wires: [wire] };
+    return { ...wp, faces: [makeFaceFromWire(this.oc, wire)] };
   }
 
   // -----------------------------------------------------------------------
-  // Path Literal (open multi-segment wire, no auto-close)
+  // Wire Literal (open multi-segment wire, no auto-close; a Wire even when it
+  // happens to close -- only `offset` makes a face of it)
   // -----------------------------------------------------------------------
 
   private evalWireLiteral(node: WireLiteralExpr, wpPlane?: Pln): Value {
@@ -1093,7 +1131,7 @@ export class Evaluator {
    * If a single shape arg, return it as-is.
    */
   private evalUnionSource(node: Union): Value {
-    return this.evalBooleanSource(node.args, node.namedArgs, 'fuse');
+    return this.evalBooleanSource(node.args, node.namedArgs, 'union');
   }
 
   /**
@@ -1101,7 +1139,7 @@ export class Evaluator {
    * First element is the base; remaining elements are subtracted.
    */
   private evalDiffSource(node: Diff): Value {
-    return this.evalBooleanSource(node.args, node.namedArgs, 'cut');
+    return this.evalBooleanSource(node.args, node.namedArgs, 'diff');
   }
 
   /**
@@ -1109,7 +1147,7 @@ export class Evaluator {
    * All elements are intersected.
    */
   private evalInterSource(node: Inter): Value {
-    return this.evalBooleanSource(node.args, node.namedArgs, 'intersect');
+    return this.evalBooleanSource(node.args, node.namedArgs, 'inter');
   }
 
   /**
@@ -1119,7 +1157,7 @@ export class Evaluator {
   private evalBooleanSource(
     args: Expression[],
     _namedArgs: NamedArg[],
-    mode: 'fuse' | 'cut' | 'intersect',
+    kind: BooleanKind,
   ): Value {
     // Collect shapes to combine
     const shapes: Value[] = [];
@@ -1143,63 +1181,13 @@ export class Evaluator {
     // expensive boolean in a model -- is missing from the trace. The operands
     // were evaluated above, so their own pipelines are already recorded.
     const t0 = this.trace?.timing ? performance.now() : 0;
-    const result = this.combineShapes(shapes, mode);
+    // Same fold as the pipe op and the shape operators: `union [a, b, c]` is
+    // `a | union [b, c]`, so the three spellings share one type check.
+    const result = applyBoolean(asWpState(shapes[0], kind), toolStatesOf(shapes.slice(1), kind), kind);
     if (this.trace) {
-      const name = { fuse: 'union', cut: 'diff', intersect: 'inter' }[mode];
       const ms = this.trace.timing ? performance.now() - t0 : undefined;
-      this.trace.record(`${name} [${shapes.length}]`, result.shape ? '3D' : '2D', result,
+      this.trace.record(`${kind} [${shapes.length}]`, contextOfState(result), result,
         Math.max(0, this.pipelineDepth - 1), ms);
-    }
-    return result;
-  }
-
-  private combineShapes(shapes: Value[], mode: 'fuse' | 'cut' | 'intersect'): WpState {
-    let result = asWpState(shapes[0]);
-    for (let i = 1; i < shapes.length; i++) {
-      const state = asWpState(shapes[i]);
-      const has2D = !state.shape && (state.wires.length > 0 || state.face2D)
-                 && !result.shape;
-      if (mode === 'fuse') {
-        if (has2D) {
-          result = wpUnion(result, state);
-          const colorMap = mergeColorMaps(result.colorMap, state.colorMap);
-          if (colorMap) result.colorMap = colorMap;
-        } else if (state.shape && result.shape) {
-          // Try true boolean fuse first (matches Python OCP, deduplicates
-          // overlap volumes). Fall back to compound only if fuse fails — a
-          // safety net for disjoint complex shapes that occasionally crash
-          // BRepAlgoAPI_Fuse.
-          let shape: typeof result.shape;
-          try {
-            shape = ensureSolid(this.oc, this.oc.fuse(result.shape, state.shape));
-          } catch (err) {
-            console.warn(`fuse failed in union pipeline; falling back to compound: ${err instanceof Error ? err.message : String(err)}`);
-            shape = this.oc.makeCompound([result.shape, state.shape]);
-          }
-          const colorMap = mergeColorMaps(result.colorMap, state.colorMap);
-          result = { ...result, shape, colorMap } as WpState;
-        } else if (state.wires.length > 0) {
-          const colorMap = mergeColorMaps(result.colorMap, state.colorMap);
-          result = { ...result, wires: [...result.wires, ...state.wires], colorMap } as WpState;
-        }
-      } else if (mode === 'cut') {
-        if (has2D) {
-          result = wpDiff(result, state);
-        } else if (state.shape && result.shape) {
-          const shape = ensureSolid(this.oc, this.oc.cut(result.shape, state.shape));
-          result = { ...result, shape } as WpState;
-        }
-      } else if (mode === 'intersect') {
-        if (has2D) {
-          result = wpInter(result, state);
-          const colorMap = mergeColorMaps(result.colorMap, state.colorMap);
-          if (colorMap) result.colorMap = colorMap;
-        } else if (state.shape && result.shape) {
-          const shape = ensureSolid(this.oc, this.oc.intersect(result.shape, state.shape));
-          const colorMap = mergeColorMaps(result.colorMap, state.colorMap);
-          result = { ...result, shape, colorMap } as WpState;
-        }
-      }
     }
     return result;
   }
@@ -1217,11 +1205,24 @@ export class Evaluator {
     try {
       let state = this.evalExpr(node.source);
       let ctx = this.sourceContext(node.source);
+      // `(a) - (b) | fillet 1`: the operator's result type is only known once
+      // the operands are, so read it off the value.
+      if (ctx === 'unknown' && node.source.type === 'BinOp' && isWpState(state)) {
+        ctx = contextOfState(state);
+      }
 
       for (const op of node.ops) {
         const t0 = this.trace?.timing ? performance.now() : 0;
-        state = this.evalPipeOp(asWpState(state), op, ctx);
-        ctx = nextContext(ctx, op.type);
+        try {
+          state = this.evalPipeOp(asWpState(state), op, ctx);
+        } catch (e) {
+          // Kernel errors (`extrude: nothing to extrude ...`) carry no
+          // position; the op that raised them does.
+          if (e instanceof EvalError && !e.loc && op.loc) throw new EvalError(e.message, op.loc);
+          if (e instanceof Error && !(e instanceof EvalError)) throw new EvalError(e.message, op.loc);
+          throw e;
+        }
+        ctx = nextContext(ctx, op.type, op);
         if (this.trace) {
           const ms = this.trace.timing ? performance.now() - t0 : undefined;
           this.trace.record(opDisplayName(op), ctx, state, this.pipelineDepth - 1, ms);
@@ -1247,18 +1248,10 @@ export class Evaluator {
       case 'Diff':
       case 'Inter':
         return '3D';
-      case 'RectExpr':
-      case 'CircleExpr':
-      case 'EllipseExpr':
-      case 'PolylineExpr':
-      case 'PolygonExpr':
-      case 'TextExpr':
-      case 'SketchExpr':
-        return '2D';
       case 'Workplane':
         return 'Workplane';
       default:
-        return 'unknown';
+        return static2DType(expr) ?? 'unknown';
     }
   }
 
@@ -1306,8 +1299,15 @@ export class Evaluator {
           throw new EvalError(`'place' requires face selection context`);
         }
         const s = ensureWorkplaneForFaceCtx(state, ctx);
-        const placed = asWpState(evalFn(op.args[0]));
-        return { ...s, wires: [...s.wires, ...placed.wires] };
+        const arg = asWpState(evalFn(op.args[0]), 'place');
+        if (arg.shape) {
+          throw new EvalError(
+            `place: expected a 2D shape (a face or a wire), got a solid. ` +
+            `To add a solid, use 'union (${literalText(op.args[0]) || '...'})'`,
+          );
+        }
+        const placed = replaneTo(arg, s.plane);
+        return { ...s, faces: [...s.faces, ...placed.faces], wires: [...s.wires, ...placed.wires] };
       }
 
       case 'Implicit2DPrimitive': {
@@ -1321,11 +1321,11 @@ export class Evaluator {
         const s = ensureWorkplaneForFaceCtx(state, ctx);
         if (op.primitive.type === 'SketchExpr') {
           const sketchResult = this.evalSketch(op.primitive as SketchExpr, s.plane) as WpState;
-          return { ...s, wires: sketchResult.wires };
+          return { ...s, faces: sketchResult.faces, wires: [] };
         }
         if (op.primitive.type === 'WireLiteralExpr') {
           const wireResult = this.evalWireLiteral(op.primitive as WireLiteralExpr, s.plane) as WpState;
-          return { ...s, wires: wireResult.wires };
+          return { ...s, faces: [], wires: wireResult.wires };
         }
         return eval2DPrimitive(s, op.primitive as Primitive2DExpr, evalFn);
       }
@@ -1398,6 +1398,13 @@ export class Evaluator {
  * Used by Move, MoveTo, Place, Grid, Polar, and Implicit2D pipe ops
  * that need an implicit workplane when faces are selected.
  */
+/** Context label for a state produced outside a pipeline (list combination). */
+function contextOfState(state: WpState): PipelineContext {
+  if (state.shape) return '3D';
+  if (state.wires.length && !state.faces.length) return 'Wire';
+  return 'Face';
+}
+
 function ensureWorkplaneForFaceCtx(state: WpState, ctx: PipelineContext): WpState {
   if (ctx === 'FaceSelection' && state.selectedFaces.length > 0) {
     return wpWorkplane(state);
@@ -1520,18 +1527,6 @@ function collinear(a: V3, b: V3, c: V3): boolean {
 // ---------------------------------------------------------------------------
 
 /** op.type -> source keyword, for trace-table labels. */
-const OP_KEYWORD: Record<string, string> = {
-  FacesSelect: 'faces', EdgesSelect: 'edges', VertsSelect: 'verts', PointsSelect: 'points',
-  Workplane: 'workplane', AsTag: 'as',
-  Fillet: 'fillet', Chamfer: 'chamfer', Shell: 'shell', Offset: 'offset',
-  Diff: 'diff', Union: 'union', Inter: 'inter', Place: 'place',
-  Hole: 'hole', Cut: 'cut', Extrude: 'extrude', Revolve: 'revolve', Sweep: 'sweep', Loft: 'loft',
-  Translate: 'translate', Rotate: 'rotate', Scale: 'scale', Move: 'move', MoveTo: 'moveto',
-  Mirror: 'mirror', Floor: 'floor', Color: 'color',
-  GridPipe: 'grid', PolarPipe: 'polar',
-  Implicit2DPrimitive: '2d', Implicit3DPrimitive: '3d',
-};
-
 /** Render a literal AST node compactly, or '' when it is not a literal.
  *  Mirrors _literal_text in the Python evaluator. */
 function literalText(node: unknown): string {

@@ -4,11 +4,12 @@
  */
 
 import type { JoinType } from 'occt-wasm';
-import type { OC, Shape, Wire, Pnt, WpState } from './types.js';
+import type { OC, Shape, Wire, Face, Pnt, WpState } from './types.js';
 import { cloneState } from './types.js';
 import { getEdges, } from './geometry.js';
 import { makeFaceFromWire, makeWireFromPoints } from './builders.js';
 import { wpWorkplane } from './selection.js';
+import { makeFaceWithHoles, explodeFaces, faceWires } from './faces.js';
 
 /**
  * Get edges to fillet/chamfer. Priority:
@@ -69,21 +70,16 @@ function fillet2DWire(oc: OC, wire: Wire, r: number): Wire {
 
 export function wpFillet(s: WpState, r: number): WpState {
   const { oc } = s;
-  // 2D context: round corners of each wire (and any face2D) via facade fillet2D.
+  // 2D context: round the corners of every face boundary (holes included)
+  // and every wire via facade fillet2D.
   if (!s.shape) {
-    if (!s.wires.length && !s.face2D) throw new Error('fillet: no shape in context');
+    if (!s.faces.length && !s.wires.length) throw new Error('fillet: no shape in context');
+    const newFaces = s.faces.map(f => {
+      const { outer, holes } = faceWires(oc, f);
+      return makeFaceWithHoles(oc, fillet2DWire(oc, outer, r), holes.map(w => fillet2DWire(oc, w, r)));
+    });
     const newWires = s.wires.map(w => fillet2DWire(oc, w, r));
-    let newFace2D = s.face2D;
-    if (newFace2D) {
-      const wires = oc.getSubShapes(newFace2D, 'wire');
-      if (wires.length === 1) {
-        newFace2D = makeFaceFromWire(oc, fillet2DWire(oc, wires[0], r));
-      } else if (wires.length > 1) {
-        const faces = wires.map(w => makeFaceFromWire(oc, fillet2DWire(oc, w, r)));
-        newFace2D = faces.length === 1 ? faces[0] : oc.fuseAll(faces);
-      }
-    }
-    return cloneState(s, { wires: newWires, face2D: newFace2D });
+    return cloneState(s, { faces: newFaces, wires: newWires });
   }
   const edges = resolveEdges(oc, s);
   if (edges.length === 0) throw new Error('fillet: no edges to fillet');
@@ -131,10 +127,20 @@ function getWirePoints(oc: OC, wire: Wire): Pnt[] {
   return points;
 }
 
-function isWireClosed(points: Pnt[]): boolean {
-  if (points.length < 3) return false;
-  const f = points[0], l = points[points.length - 1];
-  return Math.abs(f.x - l.x) < 1e-6 && Math.abs(f.y - l.y) < 1e-6 && Math.abs(f.z - l.z) < 1e-6;
+/** A wire is closed when every vertex is shared by two edges: distinct vertex
+ * positions then number as many as the edges (one fewer than an open chain).
+ * Explorer order is not path order, so first == last is not the test. */
+function isWireClosed(oc: OC, wire: Wire): boolean {
+  const edges = oc.getSubShapes(wire, 'edge').length;
+  if (edges === 0) return false;
+  const distinct: Pnt[] = [];
+  for (const v of oc.getSubShapes(wire, 'vertex')) {
+    const p = oc.vertexPosition(v);
+    if (!distinct.some(q => Math.abs(p.x - q.x) < 1e-6 && Math.abs(p.y - q.y) < 1e-6 && Math.abs(p.z - q.z) < 1e-6)) {
+      distinct.push(p);
+    }
+  }
+  return distinct.length === edges;
 }
 
 /**
@@ -204,15 +210,15 @@ function trimRoundCaps(oc: OC, wire: Wire, offsetWire: Wire, distance: number): 
 // ---------------------------------------------------------------------------
 
 /**
- * 2D wire offset.
+ * 2D offset.
  *
- * Works in two contexts:
- * 1. **Face selection** — extracts the outer wire of the first selected face,
- *    creates a workplane on that face, then offsets the wire.
- * 2. **2D context** — offsets existing wires on the current workplane.
- *
- * Positive distance = outward, negative = inward.
- * cap: "square" for perpendicular end caps on open wires (default "round").
+ * Works in three contexts:
+ * 1. **Face selection** -- extracts the outer wire of the first selected face,
+ *    creates a workplane on that face, then offsets the wire into a face.
+ * 2. **Faces** -- grows (positive) or shrinks (negative) each region.
+ * 3. **Wires** -- the one operation that turns a wire into a face: an open
+ *    wire becomes a band of width 2|d| (cap: "square" for perpendicular ends,
+ *    default round), a closed wire becomes a ring of that width.
  */
 export function wpOffset(s: WpState, distance: number, joinType?: JoinType, cap?: string): WpState {
   const { oc } = s;
@@ -221,29 +227,48 @@ export function wpOffset(s: WpState, distance: number, joinType?: JoinType, cap?
   if (s.selectedFaces.length > 0) {
     const face = s.selectedFaces[0];
     const outerWire = oc.outerWire(face);
-    // Create workplane from the face (sets plane, clears wires)
+    // Create workplane from the face (sets plane, clears 2D content)
     const wpState = wpWorkplane(s);
     // Offset the extracted wire (always closed, cap irrelevant)
     const offsetWire = oc.offsetWire2D(outerWire, distance, joinType);
-    return cloneState(wpState, { wires: [offsetWire] });
+    return cloneState(wpState, { faces: [makeFaceFromWire(oc, offsetWire)] });
   }
 
-  // 2D context: offset existing wires
-  if (s.wires.length === 0) {
-    throw new Error('offset: no wires or selected faces in context');
+  if (s.faces.length === 0 && s.wires.length === 0) {
+    throw new Error('offset: no wires, faces or selected faces in context');
   }
 
-  const newWires: Wire[] = [];
-  for (const wire of s.wires) {
-    const offsetWire = oc.offsetWire2D(wire, distance, joinType);
-    if (cap === 'square') {
-      const points = getWirePoints(oc, wire);
-      if (!isWireClosed(points)) {
-        newWires.push(trimRoundCaps(oc, wire, offsetWire, distance));
-        continue;
-      }
+  const newFaces: Face[] = [];
+  for (const face of s.faces) {
+    const { outer, holes } = faceWires(oc, face);
+    if (holes.length > 0) {
+      throw new Error('offset: a face with holes cannot be offset yet; offset the outline before cutting the holes');
     }
-    newWires.push(offsetWire);
+    newFaces.push(makeFaceFromWire(oc, oc.offsetWire2D(outer, distance, joinType)));
   }
-  return cloneState(s, { wires: newWires });
+  for (const wire of s.wires) {
+    newFaces.push(...offsetWireToFaces(oc, wire, distance, joinType, cap));
+  }
+  return cloneState(s, { faces: newFaces, wires: [] });
+}
+
+/** Thicken a wire into faces: a band around an open wire, a ring around a
+ * closed one. The sign of the distance is irrelevant -- the material sits on
+ * both sides of the curve. */
+function offsetWireToFaces(oc: OC, wire: Wire, distance: number, joinType?: JoinType, cap?: string): Face[] {
+  const d = Math.abs(distance);
+  if (!isWireClosed(oc, wire)) {
+    let contour = oc.offsetWire2D(wire, d, joinType);
+    if (cap === 'square') contour = trimRoundCaps(oc, wire, contour, d);
+    return [makeFaceFromWire(oc, contour)];
+  }
+  const outer = makeFaceFromWire(oc, oc.offsetWire2D(wire, d, joinType));
+  let inner: Wire;
+  try {
+    inner = oc.offsetWire2D(wire, -d, joinType);
+  } catch {
+    // The inward offset collapsed (d exceeds the inradius): the ring is a disk.
+    return [outer];
+  }
+  return explodeFaces(oc, oc.cut(outer, makeFaceFromWire(oc, inner)));
 }

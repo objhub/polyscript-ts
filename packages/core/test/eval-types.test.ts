@@ -133,7 +133,7 @@ describe('isWpState / asWpState', () => {
     selectedEdges: [],
     selectedVertices: [],
     points: [],
-    wires: [],
+    faces: [], wires: [],
     tags: {},
   };
 
@@ -158,11 +158,11 @@ describe('isWpState / asWpState', () => {
   });
 
   it('asWpState throws for non-WpState', () => {
-    expect(() => asWpState(42)).toThrow('Expected shape/workplane state');
+    expect(() => asWpState(42)).toThrow('expected a shape, got');
   });
 
   it('asWpState throws for null', () => {
-    expect(() => asWpState(null)).toThrow('Expected shape/workplane state');
+    expect(() => asWpState(null)).toThrow('expected a shape, got');
   });
 });
 

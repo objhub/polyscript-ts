@@ -5,6 +5,7 @@
 import type { Expression, Extrude, Revolve, Sweep, Loft, Cut, Hole } from '../ast.js';
 import type { WpState, Wire } from '../ocp-kernel.js';
 import { wpExtrude, wpRevolve, wpSweep, wpLoft, wpCutThruAll, wpCutBlind, wpHole, wpFaceHole } from '../ocp-kernel.js';
+import { stateWire, faceBoundary } from '../ocp-kernel/faces.js';
 import { asNumber, asWpState, resolveNamedArgs, getNamedNum, EvalError, type Value } from './types.js';
 import { wpWorkplane, wpMove, wpMoveTo } from '../ocp-kernel.js';
 
@@ -37,12 +38,19 @@ export function evalSweepOp(
 ): WpState {
   // state (pipeline subject) carries the PATH (spine).
   // op.args[0] is the PROFILE (cross-section to be swept).
+  // The profile is a Wire, or a hole-free Face lending its boundary.
   const profileVal = evalExprFn(op.args[0]);
   const profileState = asWpState(profileVal);
-  if (profileState.wires.length === 0) {
+  let profile: Wire | null;
+  try {
+    profile = stateWire(profileState, 'sweep profile');
+  } catch (e) {
+    throw new EvalError(e instanceof Error ? e.message : String(e));
+  }
+  if (!profile) {
     throw new EvalError('Sweep requires a profile with at least one wire');
   }
-  return wpSweep(state, profileState.wires[0], profileState.plane);
+  return wpSweep(state, profile, profileState.plane);
 }
 
 export function evalLoftOp(
@@ -56,12 +64,14 @@ export function evalLoftOp(
   const sectionsVal = evalExprFn(op.args[0]);
   if (!Array.isArray(sectionsVal)) throw new EvalError('loft first argument must be a list of sections');
 
-  // Evaluate each section to get its wires
+  // Evaluate each section to its boundary wires. Sections are Faces (a
+  // loft is solid); their outlines are what the kernel lofts through.
   const sectionWires: Wire[][] = [];
   for (const sv of sectionsVal) {
     const ws = asWpState(sv);
-    if (!ws.wires.length) throw new EvalError('Each loft section must produce wires');
-    sectionWires.push(ws.wires);
+    if (ws.wires.length) throw new EvalError('loft: a section must be a face (rect, circle, sketch ...), not a wire');
+    if (!ws.faces.length) throw new EvalError('Each loft section must produce a face');
+    sectionWires.push(ws.faces.map(f => faceBoundary(ws.oc, f, 'loft')));
   }
 
   // arg[1]: height (number) or heights (list of numbers)

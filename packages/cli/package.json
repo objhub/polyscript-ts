@@ -17,7 +17,7 @@
   "dependencies": {
     "@polyscript/core": "workspace:*",
     "commander": "^13.0.0",
-    "occt-wasm": "https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps1/occt-wasm-4.3.2-ps1.tgz"
+    "occt-wasm": "https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps2/occt-wasm-4.3.2-ps2.tgz"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

@@ -25,6 +25,7 @@ function createMockOC() {
     makeBezierEdge(pts: any[]) { calls.push({ method: 'makeBezierEdge', args: [pts] }); return nextHandle(); },
     makeWire(edges: any[]) { calls.push({ method: 'makeWire', args: [edges] }); return nextHandle(); },
     makeFace(wire: any) { calls.push({ method: 'makeFace', args: [wire] }); return nextHandle(); },
+    addHolesInFace(face: any, holes: any[]) { calls.push({ method: 'addHolesInFace', args: [face, holes] }); return nextHandle(); },
     makeCircleEdge(center: any, normal: any, r: number) { calls.push({ method: 'makeCircleEdge', args: [center, normal, r] }); return nextHandle(); },
     makeEllipseEdge(center: any, normal: any, major: number, minor: number) { calls.push({ method: 'makeEllipseEdge', args: [center, normal, major, minor] }); return nextHandle(); },
     extrude(shape: any, dx: number, dy: number, dz: number) { calls.push({ method: 'extrude', args: [shape, dx, dy, dz] }); return nextHandle(); },
@@ -199,7 +200,7 @@ describe('text placeholder fallback', () => {
     const result = evaluator.evaluate(ast);
     expect(isWpState(result)).toBe(true);
     const wp = result as WpState;
-    expect(wp.wires.length).toBeGreaterThanOrEqual(1);
+    expect(wp.faces.length).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -208,15 +209,19 @@ describe('text placeholder fallback', () => {
 // ---------------------------------------------------------------------------
 
 describe('text evaluator integration', () => {
-  it.skipIf(!_hasFont)('text "A" 10 produces multiple contour wires', () => {
+  it.skipIf(!_hasFont)('text "A" 10 produces one face with its counter as a hole', () => {
     const oc = createMockOC();
     const evaluator = new Evaluator({ oc });
     const ast = parse('text "A" 10');
     const result = evaluator.evaluate(ast);
     expect(isWpState(result)).toBe(true);
     const wp = result as WpState;
-    // "A" typically has 2 contours (outer shape + inner hole)
-    expect(wp.wires.length).toBeGreaterThanOrEqual(2);
+    // "A" has 2 contours (outer shape + inner hole); the hole is cut into
+    // the outer face instead of becoming a second region.
+    expect(wp.faces).toHaveLength(1);
+    expect(wp.wires).toHaveLength(0);
+    const holeCalls = oc._calls.filter((c: any) => c.method === 'addHolesInFace');
+    expect(holeCalls).toHaveLength(1);
   });
 
   it.skipIf(!_hasFont)('text "Hello" has more wires than "A"', () => {
@@ -226,7 +231,7 @@ describe('text evaluator integration', () => {
     const ast1 = parse('text "A" 10');
     const r1 = evaluator1.evaluate(ast1);
     expect(isWpState(r1)).toBe(true);
-    const wiresA = (r1 as WpState).wires.length;
+    const wiresA = (r1 as WpState).faces.length;
 
     resetFontCache();
     const oc2 = createMockOC();
@@ -234,7 +239,7 @@ describe('text evaluator integration', () => {
     const ast2 = parse('text "Hello" 10');
     const r2 = evaluator2.evaluate(ast2);
     expect(isWpState(r2)).toBe(true);
-    const wiresHello = (r2 as WpState).wires.length;
+    const wiresHello = (r2 as WpState).faces.length;
 
     expect(wiresHello).toBeGreaterThan(wiresA);
   });
@@ -246,7 +251,7 @@ describe('text evaluator integration', () => {
     const result = evaluator.evaluate(ast);
     expect(isWpState(result)).toBe(true);
     const wp = result as WpState;
-    expect(wp.wires.length).toBeGreaterThanOrEqual(1);
+    expect(wp.faces.length).toBeGreaterThanOrEqual(1);
     // Verify that edges were created (line or bezier)
     const edgeCalls = oc._calls.filter((c: any) =>
       c.method === 'makeLineEdge' || c.method === 'makeBezierEdge');
@@ -271,6 +276,6 @@ describe('text evaluator integration', () => {
     const result = evaluator.evaluate(ast);
     expect(isWpState(result)).toBe(true);
     const wp = result as WpState;
-    expect(wp.wires.length).toBeGreaterThanOrEqual(1);
+    expect(wp.faces.length).toBeGreaterThanOrEqual(1);
   });
 });

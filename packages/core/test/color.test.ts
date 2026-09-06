@@ -349,7 +349,7 @@ function createMockWpState(shape: any = null): any {
       yDir: { x: 0, y: 1, z: 0 },
     },
     shape,
-    wires: [],
+    faces: [], wires: [],
     selectedFaces: [],
     selectedEdges: [],
     selectedVertices: [],

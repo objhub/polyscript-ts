@@ -10,15 +10,20 @@
  */
 
 import type { BuildError } from './index.js';
+import type { ShapeInfo } from '@polyscript/core/ocp-kernel';
 import type { WorkerRequest, WorkerResponse, WorkerMesh, WorkerMeshPart } from './worker-entry.js';
 
 export type { WorkerMesh, WorkerMeshPart };
+export type { ShapeInfo } from '@polyscript/core/ocp-kernel';
 
 export interface WorkerBuildResult {
   ok: boolean;
   mesh?: WorkerMesh;
   color?: [number, number, number];
   volume?: number;
+  /** B-Rep summary: bbox, volume, area, solids, validity and the face / edge /
+   *  vertex counts. Absent when the result is not a solid. */
+  info?: ShapeInfo;
   errors: BuildError[];
   params: any[];
   parameterSets: Record<string, Record<string, unknown>>;
@@ -137,6 +142,7 @@ export class PolyWorker {
       mesh: resp.mesh,
       color: resp.color,
       volume: resp.volume,
+      info: resp.info,
       errors: resp.errors ?? [],
       params: resp.params ?? [],
       parameterSets: resp.parameterSets ?? {},

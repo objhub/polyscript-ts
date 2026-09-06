@@ -49,12 +49,15 @@ export interface WpState {
   oc: OC;
   plane: Pln;
   shape: Shape | null;
+  /** 2D regions (Face): rect/circle/ellipse/polygon/polyline/text/sketch,
+   * 2D boolean results and face-selection offsets. Each entry is a single
+   * planar face that may carry holes. Extrude/cut/revolve/loft consume these;
+   * a face is never rebuilt from its boundary, so holes survive. */
+  faces: Face[];
+  /** 2D curves (Wire): line/arc/bezier/spline/helix and `wire [...]`, open or
+   * closed, possibly non-planar. Sweep spines live here. A closed wire is not
+   * implicitly a face -- only `offset` turns a wire into a face. */
   wires: Wire[];
-  /** Optional 2D face (or compound of faces) produced by 2D boolean ops.
-   * Carries hole information that bare wires cannot represent (e.g. annulus
-   * from `circle 10 | diff (circle 3)`). When present, downstream 2D→3D ops
-   * (extrude, revolve) use this in preference to per-wire reconstruction. */
-  face2D?: Face;
   selectedFaces: Face[];
   selectedEdges: Edge[];
   selectedVertices: Vertex[];
@@ -72,8 +75,8 @@ export function cloneState(s: WpState, overrides: Partial<WpState> = {}): WpStat
     oc: s.oc,
     plane: s.plane,
     shape: s.shape,
+    faces: [...s.faces],
     wires: [...s.wires],
-    face2D: s.face2D,
     selectedFaces: [...s.selectedFaces],
     selectedEdges: [...s.selectedEdges],
     selectedVertices: [...s.selectedVertices],

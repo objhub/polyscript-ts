@@ -26,6 +26,9 @@ export interface TraceStep {
   solids?: number;
   faces?: number;
   edges?: number;
+  /** 2D context: number of faces (regions) held by the workplane. */
+  faces2d?: number;
+  /** 2D context: number of wires (curves) held by the workplane. */
   wires?: number;
   /** Wall-clock time of the op itself, exclusive of the trace's own
    * measuring; inclusive of any nested pipeline it evaluated. */
@@ -94,6 +97,7 @@ export class Trace {
       ['volume', (s) => s.volume!.toFixed(1), (s) => s.volume],
       ['solids', (s) => String(s.solids), (s) => s.solids],
       ['faces', (s) => String(s.faces), (s) => s.faces],
+      ['2d', (s) => String(s.faces2d), (s) => s.faces2d],
       ['wires', (s) => String(s.wires), (s) => s.wires],
       ['ms', (s) => s.ms!.toFixed(1), (s) => s.ms],
     ];
@@ -102,7 +106,7 @@ export class Trace {
     );
 
     const attr: Record<string, keyof TraceStep | null> = {
-      sel: 'selected', volume: 'volume', solids: 'solids', faces: 'faces', wires: 'wires', ms: 'ms',
+      sel: 'selected', volume: 'volume', solids: 'solids', faces: 'faces', '2d': 'faces2d', wires: 'wires', ms: 'ms',
     };
     const rows: string[][] = [active.map(([head]) => head)];
     for (const s of this.steps) {
@@ -158,6 +162,11 @@ function measure(step: TraceStep, state: WpState | null): void {
     } catch { /* best-effort */ }
   }
 
+  // 2D content: regions and curves are counted apart, the way the context
+  // types them (devel/2d-face-wire202609.md).
+  if (state.faces?.length) {
+    step.faces2d = state.faces.length;
+  }
   if (state.wires?.length) {
     step.wires = state.wires.length;
   }

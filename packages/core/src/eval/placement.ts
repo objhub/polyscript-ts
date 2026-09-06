@@ -56,15 +56,11 @@ export function applyAtPlacement(
     return { ...state, shape: result } as WpState;
   }
 
-  // 2D wires: translate wire copies
-  if (state.wires.length > 0) {
-    const newWires: Shape[] = [];
-    for (const wire of state.wires) {
-      for (const [x, y, z] of points) {
-        newWires.push((x !== 0 || y !== 0 || z !== 0) ? oc.translate(wire, x, y, z) : wire);
-      }
-    }
-    return { ...state, wires: newWires } as WpState;
+  // 2D faces/wires: translate copies
+  if (state.faces.length > 0 || state.wires.length > 0) {
+    const copies = (items: Shape[]) => items.flatMap(item =>
+      points.map(([x, y, z]) => (x !== 0 || y !== 0 || z !== 0) ? oc.translate(item, x, y, z) : item));
+    return { ...state, faces: copies(state.faces), wires: copies(state.wires) } as WpState;
   }
 
   // Fallback: set center points (2D only)
@@ -106,16 +102,12 @@ function applyArrayPlacement(
 ): WpState {
   if (points.length === 0) return state;
 
-  // 2D wires: translate wire copies (check before shape, because
-  // face-selection context carries the base shape AND active wires)
-  if (state.wires.length > 0) {
-    const newWires: Shape[] = [];
-    for (const wire of state.wires) {
-      for (const [x, y] of points) {
-        newWires.push((x !== 0 || y !== 0) ? oc.translate(wire, x, y, 0) : wire);
-      }
-    }
-    return { ...state, wires: newWires } as WpState;
+  // 2D faces/wires: translate copies (check before shape, because
+  // face-selection context carries the base shape AND active 2D content)
+  if (state.faces.length > 0 || state.wires.length > 0) {
+    const copies = (items: Shape[]) => items.flatMap(item =>
+      points.map(([x, y]) => (x !== 0 || y !== 0) ? oc.translate(item, x, y, 0) : item));
+    return { ...state, faces: copies(state.faces), wires: copies(state.wires) } as WpState;
   }
 
   // 3D shape: translate copies and combine as compound
@@ -156,20 +148,21 @@ function applyPolarRotate(
 ): WpState {
   const zAxis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } };
 
-  if (state.wires.length > 0) {
-    const newWires: Shape[] = [];
-    for (const wire of state.wires) {
+  if (state.faces.length > 0 || state.wires.length > 0) {
+    const copies = (items: Shape[]) => items.flatMap(item => {
+      const out: Shape[] = [];
       for (let i = 0; i < count; i++) {
         const angleRad = (2 * Math.PI * i) / count;
         const x = radius * Math.cos(angleRad);
         const y = radius * Math.sin(angleRad);
-        let w = wire;
+        let w = item;
         if (angleRad !== 0) w = oc.rotate(w, zAxis, angleRad);
         if (x !== 0 || y !== 0) w = oc.translate(w, x, y, 0);
-        newWires.push(w);
+        out.push(w);
       }
-    }
-    return { ...state, wires: newWires } as WpState;
+      return out;
+    });
+    return { ...state, faces: copies(state.faces), wires: copies(state.wires) } as WpState;
   }
 
   if (state.shape) {

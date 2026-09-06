@@ -9,8 +9,8 @@
 
 import { PolyScriptEngine } from './index.js';
 import type { BuildOptions, BuildError } from './index.js';
-import { hasDistinctColors } from '@polyscript/core/ocp-kernel';
-import type { ColorPart } from '@polyscript/core/ocp-kernel';
+import { hasDistinctColors, shapeInfo } from '@polyscript/core/ocp-kernel';
+import type { ColorPart, ShapeInfo } from '@polyscript/core/ocp-kernel';
 
 let engine: PolyScriptEngine | null = null;
 
@@ -55,6 +55,8 @@ export interface WorkerResponse {
   mesh?: WorkerMesh;
   color?: [number, number, number];
   volume?: number;
+  /** B-Rep summary of the built shape (absent for non-solids). */
+  info?: ShapeInfo;
   errors?: BuildError[];
   params?: any[];
   parameterSets?: Record<string, Record<string, unknown>>;
@@ -128,9 +130,18 @@ function handleBuild(req: WorkerRequest): WorkerResponse {
       mesh.lines = result.lineMesh;
     }
     const tessellateMs = performance.now() - t1;
+    // The whole B-Rep summary, not just the volume. A non-solid (an open wire,
+    // a bare face) has no volume and shapeInfo throws; the viewer simply gets
+    // nothing to show.
+    let info: ShapeInfo | undefined;
     let volume: number | undefined;
     if (result.shape) {
-      try { volume = engine.kernel.getVolume(result.shape); } catch { /* non-solid */ }
+      try {
+        info = cachedShapeInfo(engine, result.shape);
+        volume = info.volume;
+      } catch {
+        try { volume = engine.kernel.getVolume(result.shape); } catch { /* non-solid */ }
+      }
     }
     return {
       id: req.id,
@@ -139,6 +150,7 @@ function handleBuild(req: WorkerRequest): WorkerResponse {
       mesh,
       color: result.color,
       volume,
+      info,
       errors: result.errors,
       params: result.params,
       parameterSets: result.parameterSets,
@@ -154,6 +166,54 @@ function handleBuild(req: WorkerRequest): WorkerResponse {
   }
 }
 
+/**
+ * shapeInfo for a handle the kernel memo hands back unchanged.
+ *
+ * The summary (exact bbox, volume, area, sub-shape counts, BRepCheck validity)
+ * cost 60-250ms per build on the examples, and on a rebuild whose result is
+ * the same handle -- an unchanged model, a parameter put back -- every figure
+ * is the same too. Handles are stable for as long as the memo holds them, so
+ * the handle is the key. Bounded: the shapes a person cycles through while
+ * editing are few, and an evicted entry just costs the recompute.
+ */
+const INFO_CACHE_MAX = 64;
+const infoCache = new Map<number, ShapeInfo>();
+function cachedShapeInfo(engine: PolyScriptEngine, shape: any): ShapeInfo {
+  const key = shape as number;
+  const hit = infoCache.get(key);
+  if (hit) {
+    infoCache.delete(key);
+    infoCache.set(key, hit);
+    return hit;
+  }
+  const info = shapeInfo(engine.kernel, shape);
+  infoCache.set(key, info);
+  if (infoCache.size > INFO_CACHE_MAX) infoCache.delete(infoCache.keys().next().value as number);
+  return info;
+}
+
+/**
+ * Run `fn` against a throwaway copy of `shape`, then release the copy.
+ *
+ * BRepMesh_IncrementalMesh writes its triangulation into the shape it meshes,
+ * and BRepBndLib::Add -- behind getBoundingBoxFast, behind faceCenter, behind
+ * every selector -- prefers that triangulation to the geometry when it is
+ * there. So meshing the shape the memo holds moved face centres by up to
+ * 0.06 on 07_keyboard_case, which changed the arguments of everything a
+ * selector fed, which turned an all-hit rebuild (72/72, 9ms) into 41/72 and
+ * 543ms -- and could pick a different face next time two centres are close.
+ * A copy costs ~3ms and keeps the memoized geometry exactly as built.
+ */
+function withMeshCopy<T>(engine: PolyScriptEngine, shape: any, fn: (copy: any) => T): T {
+  const kernel = engine.kernel;
+  const copy = kernel.copy(shape);
+  try {
+    return fn(copy);
+  } finally {
+    kernel.release(copy);
+  }
+}
+
 function emptyMesh(): WorkerMesh {
   return { positions: new Float32Array(0), normals: new Float32Array(0), indices: new Uint32Array(0) };
 }
@@ -165,11 +225,11 @@ function emptyMesh(): WorkerMesh {
  * internal edges where parts meet are not drawn.
  */
 function tessellateResult(engine: PolyScriptEngine, shape: any, parts: ColorPart[]): WorkerMesh {
-  if (!hasDistinctColors(parts)) return engine.tessellate(shape);
+  if (!hasDistinctColors(parts)) return withMeshCopy(engine, shape, (c) => engine.tessellate(c));
   const mesh = emptyMesh();
   mesh.edgePoints = engine.edgeSegments(shape);
   mesh.parts = parts.map((p) => ({
-    ...engine.tessellate(p.shape, { edges: false }),
+    ...withMeshCopy(engine, p.shape, (c) => engine.tessellate(c, { edges: false })),
     color: p.color,
     alpha: p.alpha,
   }));
@@ -180,14 +240,18 @@ function handleExport(req: WorkerRequest): WorkerResponse {
   if (!engine || !lastShape) {
     return { id: req.id, type: 'export', ok: false, error: 'No shape to export' };
   }
+  // A const for the closures below: TypeScript does not carry the narrowing
+  // of a module-level `let` into a callback.
+  const eng = engine;
   try {
     let data: Uint8Array | string;
     let filename: string;
     let mime: string;
 
     switch (req.format) {
+      // STL and glTF mesh the shape on the way out; see withMeshCopy.
       case 'stl':
-        data = engine.exportSTL(lastShape);
+        data = withMeshCopy(eng, lastShape, (c) => eng.exportSTL(c));
         filename = 'model.stl';
         mime = 'application/octet-stream';
         break;
@@ -197,7 +261,14 @@ function handleExport(req: WorkerRequest): WorkerResponse {
         mime = 'application/STEP';
         break;
       case 'gltf': {
-        data = engine.exportGLTF(lastShape, { parts: lastParts, color: lastColor });
+        // exportGLTF meshes each coloured part as well as the whole.
+        const kernel = eng.kernel;
+        const partCopies = lastParts.map((p) => ({ ...p, shape: kernel.copy(p.shape) }));
+        try {
+          data = withMeshCopy(eng, lastShape, (c) => eng.exportGLTF(c, { parts: partCopies, color: lastColor }));
+        } finally {
+          for (const p of partCopies) kernel.release(p.shape);
+        }
         filename = 'model.glb';
         mime = 'model/gltf-binary';
         break;

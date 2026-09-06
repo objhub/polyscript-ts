@@ -146,12 +146,19 @@ export function asString(v: Value): string {
   return String(v);
 }
 
-export function asWpState(v: Value): WpState {
-  if (v && typeof v === 'object') {
-    const obj = v as unknown as Record<string, unknown>;
-    if ('oc' in obj && 'plane' in obj) return v as WpState;
-  }
-  throw new EvalError(`Expected shape/workplane state`);
+/** Short type name of a value, for error messages. */
+export function describeValue(v: Value): string {
+  if (isWpState(v)) return 'a shape';
+  if (Array.isArray(v)) return 'a list';
+  if (v === null || v === undefined) return 'nothing';
+  return typeof v;
+}
+
+/** Coerce a value to a workplane state. `op` names the operation in the error
+ * (`diff: expected a shape, got number` for `box | diff 5`). */
+export function asWpState(v: Value, op?: string): WpState {
+  if (isWpState(v)) return v;
+  throw new EvalError(`${op ? `${op}: ` : ''}expected a shape, got ${describeValue(v)}`);
 }
 
 export function isWpState(v: Value): v is WpState {

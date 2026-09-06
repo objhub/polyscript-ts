@@ -215,5 +215,5 @@ export function eval3DPrimitive(
   });
 
   const combined = shapes.length === 1 ? shapes[0] : oc.makeCompound(shapes);
-  return cloneState(state, { shape: combined, wires: [], points: null, selectedVertices: [] });
+  return cloneState(state, { shape: combined, faces: [], wires: [], points: null, selectedVertices: [] });
 }

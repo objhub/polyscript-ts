@@ -10,6 +10,8 @@
 import type { Expression, Translate, Rotate, Scale, Move, MoveTo, Mirror } from '../ast.js';
 import type { WpState } from '../ocp-kernel.js';
 import { wpTranslate, wpRotate, wpScale, wpMove, wpMoveTo, wpMirror, wpWorkplane, boundingBox } from '../ocp-kernel.js';
+import { wpRotate2D } from '../ocp-kernel/transform.js';
+import { planeOrigin, to3d } from '../ocp-kernel/geometry.js';
 import { cloneState } from '../ocp-kernel/types.js';
 import { asNumber, resolveNamedArgs, type Value, EvalError } from './types.js';
 
@@ -93,20 +95,88 @@ export function evalTranslateOp(
   return s;
 }
 
+/**
+ * `rotate` takes a different number of angles depending on what it is
+ * rotating, and the count is never padded: `rotate 0 90` used to mean
+ * `rotate 0 90 0` here and "no rotation" in the Python implementation, both
+ * silently (devel/parity-ledger202609.md §4). SPEC principle 7 forbids that.
+ *
+ *   - 2D geometry on a workplane (faces and wires): ONE angle, about the
+ *     plane normal. A sketch drawn on a face turns in that face.
+ *   - a solid: THREE angles about the world axes, as before.
+ *   - a bare workplane / selection: nothing to rotate. Turning the drawing
+ *     frame itself was considered and declined as too easy to misread.
+ *
+ * 2D is checked first: after `faces >Z | rect 10 5` the state still carries
+ * the solid underneath, and the thing being rotated is the rectangle.
+ */
 export function evalRotateOp(
   state: WpState,
   op: Rotate,
   evalExprFn: (e: Expression) => Value,
 ): WpState {
   const args = op.args.map(e => asNumber(evalExprFn(e)));
-  const [ax = 0, ay = 0, az = 0] = args;
-  const center = resolveOrigin(state, evalExprFn, op.namedArgs);
+  const has2D = state.faces.length > 0 || state.wires.length > 0;
 
-  let s = state;
-  if (ax !== 0) s = wpRotate(s, center, [1, 0, 0], ax);
-  if (ay !== 0) s = wpRotate(s, center, [0, 1, 0], ay);
-  if (az !== 0) s = wpRotate(s, center, [0, 0, 1], az);
-  return s;
+  if (has2D) {
+    if (args.length !== 1) {
+      throw new EvalError(
+        `rotate: on a 2D shape, 1 argument (angle about the plane normal); got ${args.length}`,
+        op.loc,
+      );
+    }
+    return wpRotate2D(state, resolve2DOrigin(state, evalExprFn, op), args[0]);
+  }
+
+  if (state.shape) {
+    if (args.length !== 3) {
+      throw new EvalError(`rotate: on a solid, 3 arguments (rx ry rz); got ${args.length}`, op.loc);
+    }
+    const [ax, ay, az] = args;
+    const center = resolveOrigin(state, evalExprFn, op.namedArgs);
+    let s = state;
+    if (ax !== 0) s = wpRotate(s, center, [1, 0, 0], ax);
+    if (ay !== 0) s = wpRotate(s, center, [0, 1, 0], ay);
+    if (az !== 0) s = wpRotate(s, center, [0, 0, 1], az);
+    return s;
+  }
+
+  throw new EvalError('rotate: nothing to rotate here — draw a shape first (a workplane itself cannot be rotated)', op.loc);
+}
+
+/**
+ * The point a 2D rotation turns about, in world coordinates.
+ *   omitted / "world"  the workplane origin
+ *   "local"            the centre of the 2D geometry's bounding box
+ *   (x, y)             workplane coordinates
+ *   (x, y, z)          a world point
+ */
+function resolve2DOrigin(
+  state: WpState,
+  evalExprFn: (e: Expression) => Value,
+  op: Rotate | Mirror,
+): [number, number, number] {
+  const kwargs = resolveNamedArgs(op.namedArgs, evalExprFn);
+  const origin = kwargs.get('origin');
+  if (origin === undefined || origin === 'world') {
+    const o = planeOrigin(state.plane);
+    return [o.x, o.y, o.z];
+  }
+  if (origin === 'local') {
+    const all = [...state.faces, ...state.wires];
+    const geometry = all.length === 1 ? all[0] : state.oc.makeCompound(all);
+    const bb = boundingBox(state.oc, geometry);
+    return [(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2];
+  }
+  if (Array.isArray(origin)) {
+    const nums = origin.map(v => asNumber(v));
+    if (nums.length === 2) {
+      const p = to3d(state.oc, state.plane, nums[0], nums[1]);
+      return [p.x, p.y, p.z];
+    }
+    if (nums.length === 3) return [nums[0], nums[1], nums[2]];
+  }
+  throw new EvalError(`${op.type === 'Mirror' ? 'mirror' : 'rotate'}: origin must be "world", "local", (x, y) or (x, y, z)`, op.loc);
 }
 
 export function evalScaleOp(
@@ -207,14 +277,44 @@ export function evalMoveToOp(
   return wpMoveTo(state, x, y);
 }
 
+/**
+ * `mirror "X"|"Y"|"Z"` reflects; it does not also keep the original. That is
+ * what SPEC says and what OpenSCAD, CadQuery and build123d do, and it keeps
+ * mirror in the same family as translate/rotate/scale: a pure transform.
+ * The "build half, mirror to finish" idiom is `keep:true`, one fuse away
+ * (CadQuery spells it `union=True`). The Python implementation fused by
+ * default; that divergence is recorded in devel/parity-ledger202609.md §4.
+ *
+ *   keep:true     reflection fused with the original (2D: both kept)
+ *   origin:       a point on the mirror plane; same forms as rotate's
+ */
 export function evalMirrorOp(
   state: WpState,
   op: Mirror,
   evalExprFn: (e: Expression) => Value,
 ): WpState {
   const args = op.args.map(e => evalExprFn(e));
-  const axis = args.length > 0 && typeof args[0] === 'string' ? args[0] : 'X';
-  return wpMirror(state, axis);
+  const axis = args.length === 1 && typeof args[0] === 'string' ? args[0].toUpperCase() : null;
+  const has2D = state.faces.length > 0 || state.wires.length > 0;
+  const valid = has2D ? ['X', 'Y'] : ['X', 'Y', 'Z'];
+  if (!axis || !valid.includes(axis)) {
+    throw new EvalError(
+      `mirror requires one axis name, ${valid.map(a => `"${a}"`).join(' / ')}; got ${args.length === 0 ? 'nothing' : args.map(a => JSON.stringify(a)).join(' ')}`,
+      op.loc,
+    );
+  }
+  const kwargs = resolveNamedArgs(op.namedArgs, evalExprFn);
+  const keep = kwargs.get('keep');
+  if (keep !== undefined && typeof keep !== 'boolean') {
+    throw new EvalError('mirror: keep must be true or false', op.loc);
+  }
+  if (!has2D && !state.shape) {
+    throw new EvalError('mirror: nothing to mirror here — draw a shape first', op.loc);
+  }
+  const center = kwargs.has('origin')
+    ? (has2D ? resolve2DOrigin(state, evalExprFn, op) : resolveOrigin(state, evalExprFn, op.namedArgs))
+    : undefined;
+  return wpMirror(state, axis, { keep: keep === true, center });
 }
 
 /**

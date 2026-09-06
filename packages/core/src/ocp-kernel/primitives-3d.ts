@@ -26,7 +26,7 @@ export function wpBox(s: WpState, w: number, h: number, d: number, center: Cente
   const ty = center[1] ? -h / 2 : 0;
   const tz = center[2] ? -d / 2 : 0;
   shape = oc.translate(shape, tx, ty, tz);
-  return cloneState(s, { shape, wires: [], selectedFaces: [], selectedEdges: [] });
+  return cloneState(s, { shape, faces: [], wires: [], selectedFaces: [], selectedEdges: [] });
 }
 
 export function wpCylinder(
@@ -47,7 +47,7 @@ export function wpCylinder(
   if (dir) shape = alignZToDir(oc, shape, dir);
   // 3. pnt translation
   if (pnt) shape = oc.translate(shape, pnt[0], pnt[1], pnt[2]);
-  return cloneState(s, { shape, wires: [], selectedFaces: [], selectedEdges: [] });
+  return cloneState(s, { shape, faces: [], wires: [], selectedFaces: [], selectedEdges: [] });
 }
 
 export function wpSphere(s: WpState, r: number, center: Center3 = [true, true, true]): WpState {
@@ -58,7 +58,7 @@ export function wpSphere(s: WpState, r: number, center: Center3 = [true, true, t
   const ty = center[1] ? 0 : r;
   const tz = center[2] ? 0 : r;
   if (tx !== 0 || ty !== 0 || tz !== 0) shape = oc.translate(shape, tx, ty, tz);
-  return cloneState(s, { shape, wires: [], selectedFaces: [], selectedEdges: [] });
+  return cloneState(s, { shape, faces: [], wires: [], selectedFaces: [], selectedEdges: [] });
 }
 
 export function wpCone(
@@ -83,7 +83,7 @@ export function wpCone(
   if (dir) shape = alignZToDir(oc, shape, dir);
   // 3. pnt translation
   if (pnt) shape = oc.translate(shape, pnt[0], pnt[1], pnt[2]);
-  return cloneState(s, { shape, wires: [], selectedFaces: [], selectedEdges: [] });
+  return cloneState(s, { shape, faces: [], wires: [], selectedFaces: [], selectedEdges: [] });
 }
 
 export function wpTorus(s: WpState, r1: number, r2: number, center: Center3 = [true, true, true]): WpState {
@@ -94,7 +94,7 @@ export function wpTorus(s: WpState, r1: number, r2: number, center: Center3 = [t
   const ty = center[1] ? 0 : r1 + r2;
   const tz = center[2] ? 0 : r2;
   if (tx !== 0 || ty !== 0 || tz !== 0) shape = oc.translate(shape, tx, ty, tz);
-  return cloneState(s, { shape, wires: [], selectedFaces: [], selectedEdges: [] });
+  return cloneState(s, { shape, faces: [], wires: [], selectedFaces: [], selectedEdges: [] });
 }
 
 export function wpWedge(s: WpState, dx: number, dy: number, dz: number, ltx: number, center: Center3 = [true, true, true]): WpState {
@@ -120,5 +120,5 @@ export function wpWedge(s: WpState, dx: number, dy: number, dz: number, ltx: num
   const ty = center[1] ? -dy / 2 : 0;
   const tz = center[2] ? -dz / 2 : 0;
   if (tx !== 0 || ty !== 0 || tz !== 0) shape = oc.translate(shape, tx, ty, tz);
-  return cloneState(s, { shape, wires: [], selectedFaces: [], selectedEdges: [] });
+  return cloneState(s, { shape, faces: [], wires: [], selectedFaces: [], selectedEdges: [] });
 }

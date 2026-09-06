@@ -322,62 +322,27 @@ export class PolyScriptEngine {
     const parts: ColorPart[] = [];
 
     for (const wp of states) {
-      const { shape: wiresShape, openWires } = this.shapeAndLinesFromWires(wp.wires);
-      allOpenWires.push(...openWires);
+      // Since the 2D split (devel/2d-face-wire202609.md) a state carries its
+      // regions in `faces` and its curves in `wires`. Faces are drawn as
+      // surfaces, holes included; wires are drawn as lines, closed or not --
+      // a closed wire is not a face, and `offset` is what makes one of it.
+      // Reading only `shape` and `wires` here is why `rect 80 60` stopped
+      // rendering after the split ("No shape produced").
+      const facesShape = wp.faces.length === 0 ? null
+        : wp.faces.length === 1 ? wp.faces[0]
+        : this.evalOc.makeCompound(wp.faces);
+      allOpenWires.push(...wp.wires);
       if (wp.shape) parts.push(...colorParts(this.evalOc, wp, wp.shape));
-      if (wiresShape) parts.push({ shape: wiresShape, color: wp.color, alpha: wp.alpha });
+      if (facesShape) parts.push({ shape: facesShape, color: wp.color, alpha: wp.alpha });
 
-      let wpShape = wp.shape ?? wiresShape;
-      if (wp.shape && wiresShape) {
-        wpShape = this.evalOc.makeCompound([wp.shape, wiresShape]);
-      }
+      const pieces = [wp.shape, facesShape].filter((x): x is Shape => x !== null && x !== undefined);
+      const wpShape = pieces.length === 0 ? null : pieces.length === 1 ? pieces[0] : this.evalOc.makeCompound(pieces);
       if (!wpShape) continue;
       if (!firstColor && wp.color) firstColor = wp.color;
       fusedShape = fusedShape ? this.evalOc.fuse(fusedShape, wpShape) : wpShape;
     }
 
     return { shape: fusedShape, color: firstColor, parts, openWires: allOpenWires };
-  }
-
-  /**
-   * Split wires into closed (→ faces) and open (→ line data).
-   * Returns the closed-wire shape (null if no closed wires) and the list of open wires.
-   */
-  private shapeAndLinesFromWires(wires: Wire[]): { shape: Shape | null; openWires: Wire[] } {
-    const faces: Shape[] = [];
-    const openWires: Wire[] = [];
-    for (const wire of wires) {
-      if (this.isWireClosed(wire)) {
-        try {
-          faces.push(this.oc.makeFace(wire));
-        } catch {
-          // Closed wire that makeFace couldn't handle — treat as line
-          openWires.push(wire);
-        }
-      } else {
-        openWires.push(wire);
-      }
-    }
-    let shape: Shape | null = null;
-    if (faces.length === 1) shape = faces[0];
-    else if (faces.length > 1) shape = this.oc.makeCompound(faces);
-    return { shape, openWires };
-  }
-
-  /** Detect open/closed wire by comparing first/last sample points of wireframe. */
-  private isWireClosed(wire: Wire, tol: number = 1e-6): boolean {
-    try {
-      const wf = this.oc.wireframe(wire, 0.1);
-      if (wf.pointCount < 2) return false;
-      const n = wf.points.length;
-      if (n < 6) return false;
-      const fx = wf.points[0], fy = wf.points[1], fz = wf.points[2];
-      const lx = wf.points[n - 3], ly = wf.points[n - 2], lz = wf.points[n - 1];
-      const d = Math.sqrt((fx - lx) ** 2 + (fy - ly) ** 2 + (fz - lz) ** 2);
-      return d < tol;
-    } catch {
-      return false;
-    }
   }
 
   /**

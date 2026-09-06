@@ -51,7 +51,7 @@ export { wpBox, wpCylinder, wpSphere, wpCone, wpTorus, wpWedge, type Center3 } f
 export { wpRect, wpCircle, wpEllipse, wpPolygon, wpText, type Center2 } from './primitives-2d.js';
 
 // Text rendering
-export { textToWires, setTextFont, resetFontCache } from './text-render.js';
+export { textToWires, textToFaces, setTextFont, resetFontCache } from './text-render.js';
 
 // Selection
 export { wpFaces, wpEdges, wpVertices, wpWorkplane, wpTag } from './selection.js';

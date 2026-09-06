@@ -205,7 +205,7 @@ describe('evaluator -- sketch', () => {
 
     expect(isWpState(result)).toBe(true);
     const wp = result as WpState;
-    expect(wp.wires).toHaveLength(1);
+    expect(wp.faces).toHaveLength(1);
 
     // Should create 3 line edges (last point == start, so no auto-close edge)
     const lineEdgeCalls = oc._calls.filter((c: any) => c.method === 'makeLineEdge');
@@ -384,7 +384,7 @@ describe('evaluator -- sketch with workplane', () => {
 
     expect(isWpState(result)).toBe(true);
     const wp = result as WpState;
-    expect(wp.wires).toHaveLength(1);
+    expect(wp.faces).toHaveLength(1);
 
     // XZ plane: xDir=(1,0,0), yDir=(0,0,1)
     // (-10, 0) -> world (-10, 0, 0)

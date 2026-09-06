@@ -259,7 +259,7 @@ describe('2D primitives', () => {
     it('rejects faces on 2D context', () => {
       const errors = getErrors('circle 10 | faces >Z');
       expect(errors.length).toBeGreaterThan(0);
-      expect(errors[0].message).toContain('not valid in 2D');
+      expect(errors[0].message).toContain('not valid in Face');
     });
 
     it('accepts 2D -> extrude -> 3D -> diff', () => {
@@ -399,7 +399,7 @@ describe('2D primitives', () => {
 
       expect(isWpState(result)).toBe(true);
       const wp = result as WpState;
-      expect(wp.wires).toHaveLength(1);
+      expect(wp.faces).toHaveLength(1);
 
       const lineEdgeCalls = oc._calls.filter((c: any) => c.method === 'makeLineEdge');
       expect(lineEdgeCalls.length).toBe(6);
@@ -455,7 +455,7 @@ describe('2D primitives', () => {
       // The base shape from box should be preserved (not translated)
       expect(wp.shape).toBeTruthy();
       // Wires should exist (the rect wire, translated)
-      expect(wp.wires.length).toBeGreaterThan(0);
+      expect(wp.faces.length).toBeGreaterThan(0);
       // Find translate calls — they should only be for wires, not the box shape
       const makeBoxCall = oc._calls.find((c: any) => c.method === 'makeBox');
       expect(makeBoxCall).toBeDefined();
@@ -481,7 +481,7 @@ describe('2D primitives', () => {
       expect(isWpState(result)).toBe(true);
       const wp = result as WpState;
       expect(wp.shape).toBeTruthy();
-      expect(wp.wires.length).toBeGreaterThan(0);
+      expect(wp.faces.length).toBeGreaterThan(0);
       // Verify translate was called (for wire placement)
       const translateCalls = oc._calls.filter((c: any) => c.method === 'translate');
       expect(translateCalls.length).toBeGreaterThan(0);
@@ -589,7 +589,7 @@ describe('text size: named arg', () => {
       expect(isWpState(result)).toBe(true);
       const wp = result as WpState;
       // With real font: multiple contour wires; with placeholder: 1 rect wire
-      expect(wp.wires.length).toBeGreaterThanOrEqual(1);
+      expect(wp.faces.length).toBeGreaterThanOrEqual(1);
       // At least some edges were created (line or bezier)
       const edgeCalls = oc._calls.filter((c: any) =>
         c.method === 'makeLineEdge' || c.method === 'makeBezierEdge');
@@ -604,7 +604,7 @@ describe('text size: named arg', () => {
 
       expect(isWpState(result)).toBe(true);
       const wp = result as WpState;
-      expect(wp.wires.length).toBeGreaterThanOrEqual(1);
+      expect(wp.faces.length).toBeGreaterThanOrEqual(1);
     });
 
     it('text "A" defaults to size=10 when no size given', () => {
@@ -616,7 +616,7 @@ describe('text size: named arg', () => {
       expect(isWpState(result)).toBe(true);
       const wp = result as WpState;
       // "A" has at least 1 contour (outer) — with real font, possibly 2 (+ inner hole)
-      expect(wp.wires.length).toBeGreaterThanOrEqual(1);
+      expect(wp.faces.length).toBeGreaterThanOrEqual(1);
     });
 
     it('size: named arg takes priority over positional arg[1]', () => {
@@ -628,7 +628,7 @@ describe('text size: named arg', () => {
 
       expect(isWpState(result)).toBe(true);
       const wp = result as WpState;
-      expect(wp.wires.length).toBeGreaterThanOrEqual(1);
+      expect(wp.faces.length).toBeGreaterThanOrEqual(1);
       // Verify edges were created
       const edgeCalls = oc._calls.filter((c: any) =>
         c.method === 'makeLineEdge' || c.method === 'makeBezierEdge');
@@ -737,7 +737,7 @@ describe('workplane as source command', () => {
     });
 
     it('rejects invalid bare-word plane name', () => {
-      expect(() => parseFirst('workplane ABC | circle 10')).toThrow(/Invalid workplane name/);
+      expect(() => parseFirst('workplane ABC | circle 10')).toThrow(/unknown plane 'ABC'/);
     });
 
     it('parses standalone workplane XZ (bare-word, no pipe ops)', () => {

@@ -12,7 +12,7 @@
     "bbox": 0.1,
     "volume_percent": 1
   },
-  "regenerated_at": "2026-09-02T08:50:09.786012+00:00",
+  "regenerated_at": "2026-09-04T11:19:24.042559+00:00",
   "provenance": {
     "note": "A snapshot without a `source` block is from the frozen Python oracle above and is evidence of correctness. A snapshot with `source.implementation = \"typescript\"` was produced by the code under test: it detects change, not correctness, and was human-verified when written.",
     "typescript_kernel": "occt-wasm 4.3.2-ps1"

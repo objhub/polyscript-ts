@@ -1,7 +1,9 @@
 export { default as ModelViewer } from './ModelViewer.svelte';
 export { default as CodeEditor } from './CodeEditor.svelte';
 export { default as ParamsPanel } from './ParamsPanel.svelte';
-export type { MeshData, MeshPart } from './types';
+export { default as DownloadMenu } from './DownloadMenu.svelte';
+export { default as StatusBar } from './StatusBar.svelte';
+export type { MeshData, MeshPart, DownloadItem } from './types';
 export { CUSTOM_PRESET, findMatchingPreset } from './profile-helpers.js';
 export type { Profile, ProfileEntry } from './profile-helpers.js';
 export {

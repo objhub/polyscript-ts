@@ -7,19 +7,29 @@
  * `make fulltest` drives the core library directly through vitest, so it never
  * touches the CLI. That gap let `poly info`/`poly build` ship a compound where
  * the library fused (00_polyscript_logo: 4 solids, +3.6% volume) with every
- * test green. This runs the real binary over every example that has a
+ * test green. This runs the real binary over every corpus file that has a
  * snapshot and applies the same tolerances the harness does.
  */
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const EXAMPLES = join(HERE, 'examples');
+// Regression cases live outside the teaching corpus (see tests/README.md), so
+// a snapshot's .poly is in one directory or the other.
+const REGRESSIONS = join(HERE, 'regressions');
+const CORPUS_DIRS = [EXAMPLES, REGRESSIONS];
 const SNAPS = join(HERE, 'snapshots');
-// Resolved here because the binary is spawned with cwd set to examples/.
+// Resolved here because the binary is spawned with cwd set to the corpus
+// directory the file came from.
 const POLY = resolve(process.env.POLY ?? join(HERE, '..', 'build', 'bin', 'poly'));
+
+/** The corpus directory holding `name`, or null when no such file exists. */
+function corpusDirOf(name: string): string | null {
+  return CORPUS_DIRS.find((dir) => existsSync(join(dir, name))) ?? null;
+}
 
 const meta = JSON.parse(readFileSync(join(SNAPS, 'meta.json'), 'utf-8'));
 const bboxTol: number = meta.tolerance?.bbox ?? 0.1;
@@ -31,7 +41,14 @@ for (const snapFile of readdirSync(SNAPS).filter(f => f.endsWith('.poly.json')).
   const expected = JSON.parse(readFileSync(join(SNAPS, snapFile), 'utf-8'));
   if (expected === null || 'error' in expected) continue;   // library-only or known-bad
 
-  const r = spawnSync(POLY, ['info', name, '--json'], { cwd: EXAMPLES, encoding: 'utf-8' });
+  const cwd = corpusDirOf(name);
+  if (!cwd) {
+    checked++; failed++;
+    console.log(`FAIL ${name}\n    no .poly in ${CORPUS_DIRS.join(' or ')} (snapshot without a source file)`);
+    continue;
+  }
+
+  const r = spawnSync(POLY, ['info', name, '--json'], { cwd, encoding: 'utf-8' });
   let got: any = null;
   try { got = JSON.parse(r.stdout).shape; } catch { /* fall through */ }
   const problems: string[] = [];
@@ -52,5 +69,5 @@ for (const snapFile of readdirSync(SNAPS).filter(f => f.endsWith('.poly.json')).
   checked++;
   if (problems.length) { failed++; console.log(`FAIL ${name}\n    ${problems.join('\n    ')}`); }
 }
-console.log(`binary_check: ${checked - failed}/${checked} examples match the snapshots (${POLY})`);
+console.log(`binary_check: ${checked - failed}/${checked} corpus files match the snapshots (${POLY})`);
 process.exit(failed ? 1 : 0);

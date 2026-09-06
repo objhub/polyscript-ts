@@ -60,14 +60,14 @@ export function wpVertices(s: WpState, selector?: string, tagName?: string): WpS
     return cloneState(s, { shape: s.tags.get(tagName)! });
   }
 
-  // 2D context: extract vertices from wires and convert to points on the plane
-  if (s.wires.length > 0) {
+  // 2D context: extract vertices from faces and wires, as points on the plane
+  if (s.faces.length > 0 || s.wires.length > 0) {
     const pts: [number, number][] = [];
     const o = s.plane.origin;
     const xd = s.plane.xDir;
     const yd = s.plane.yDir;
-    for (const wire of s.wires) {
-      const verts = oc.getSubShapes(wire, 'vertex');
+    for (const item of [...s.faces, ...s.wires]) {
+      const verts = oc.getSubShapes(item, 'vertex');
       for (const v of verts) {
         const p = oc.vertexPosition(v);
         // Project 3D point onto the workplane to get 2D coordinates
@@ -82,7 +82,7 @@ export function wpVertices(s: WpState, selector?: string, tagName?: string): WpS
         }
       }
     }
-    return cloneState(s, { points: pts, wires: [] });
+    return cloneState(s, { points: pts, faces: [], wires: [] });
   }
 
   if (!s.shape) return s;
@@ -156,15 +156,15 @@ export function wpWorkplane(s: WpState, planeName?: string, origin?: number[]): 
     }
     const plane: Pln = { origin: planeOrigin, normal, xDir: xdir, yDir: yd };
     return cloneState(s, {
-      plane, wires: [], selectedFaces: [], selectedEdges: [], points: null,
+      plane, faces: [], wires: [], selectedFaces: [], selectedEdges: [], points: null,
       centerX: 0, centerY: 0,
     });
   }
   if (planeName) {
     const newPlane = makePlane(s.oc, planeName);
-    return cloneState(s, { plane: newPlane, wires: [], centerX: 0, centerY: 0, points: null });
+    return cloneState(s, { plane: newPlane, faces: [], wires: [], centerX: 0, centerY: 0, points: null });
   }
-  return cloneState(s, { wires: [], centerX: 0, centerY: 0, points: null });
+  return cloneState(s, { faces: [], wires: [], centerX: 0, centerY: 0, points: null });
 }
 
 export function wpTag(s: WpState, name: string): WpState {
