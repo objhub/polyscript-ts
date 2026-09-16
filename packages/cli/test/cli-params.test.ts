@@ -116,7 +116,7 @@ describe('CLI integration — -D and --params-file', () => {
     writeFileSync(srcFile, 'w = 10\nbox w w w\n');
     const { code, stderr } = run(['build', srcFile, '-D', 'unknown_x=42', '-o', outFile]);
     expect(code).toBe(0);  // warning, not error
-    expect(stderr).toContain('Warning');
+    expect(stderr).toContain('warning param.unknown');
     expect(stderr).toContain('unknown_x');
     unlinkSync(srcFile);
     if (existsSync(outFile)) unlinkSync(outFile);

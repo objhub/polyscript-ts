@@ -136,23 +136,38 @@ describe('validator messages name the keyword and the allowed contexts', () => {
     return validate(parse(source)).map(e => e.message);
   }
 
+  // The fix lives in `hint`, apart from the message, so a caller can render
+  // or drop it independently; `code` is what tooling keys off.
+  function first(source: string) {
+    return validate(parse(source))[0];
+  }
+
   it('an implicit 2D primitive in 3D context is reported as its keyword with a faces hint', () => {
-    const [m] = messages('box 10 10 10 | rect 5 5');
-    expect(m).toMatch(/^'rect' is not valid in 3D context \(allowed in: .*Workplane.*Face/);
-    expect(m).toMatch(/select a face to draw on first/);
-    expect(m).not.toMatch(/Implicit2DPrimitive/);
+    const e = first('box 10 10 10 | rect 5 5');
+    expect(e.message).toMatch(/^'rect' is not valid in 3D context \(allowed in: .*Workplane.*Face/);
+    expect(e.hint).toMatch(/select a face to draw on first/);
+    expect(e.message).not.toMatch(/Implicit2DPrimitive/);
+    expect(e.code).toBe('context.invalid-op');
+    expect(e.line).toBe(1);
   });
 
   it('a 3D op on an outline suggests extruding first', () => {
-    const [m] = messages('rect 10 10 | translate 1 0 0');
-    expect(m).toMatch(/^'translate' is not valid in Face context \(allowed in: .*3D/);
-    expect(m).toMatch(/extrude the outline first/);
+    const e = first('rect 10 10 | translate 1 0 0');
+    expect(e.message).toMatch(/^'translate' is not valid in Face context \(allowed in: .*3D/);
+    expect(e.hint).toMatch(/extrude the outline first/);
   });
 
   it('an area op on a wire says a wire has no area', () => {
-    const [m] = messages('wire [(0, 0), (5, 0)] | extrude 3');
-    expect(m).toMatch(/^'extrude' is not valid in Wire context/);
-    expect(m).toMatch(/a wire has no area/);
+    const e = first('wire [(0, 0), (5, 0)] | extrude 3');
+    expect(e.message).toMatch(/^'extrude' is not valid in Wire context/);
+    expect(e.hint).toMatch(/a wire has no area/);
+  });
+
+  it('a missing required argument is arg.missing, with the position', () => {
+    const e = first('box 10 10 10 | edges ">Z" | fillet');
+    expect(e.code).toBe('arg.missing');
+    expect(e.message).toBe('fillet requires a radius argument');
+    expect(e.line).toBe(1);
   });
 
   it('other ops use their keyword too', () => {

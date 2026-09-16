@@ -64,6 +64,8 @@ import { evalColorOp } from './pipe-color.js';
 
 import { type PipelineContext, nextContext, static2DType, shapeOperatorKind, OP_KEYWORD } from '../context.js';
 import { replaneTo } from '../ocp-kernel/faces.js';
+import type { CodedError } from '../diagnostics.js';
+import { asDiagnosticCode } from '../diagnostics.js';
 
 // ---------------------------------------------------------------------------
 // Selector mapping: PolyScript selector notation -> CadQuery selector string
@@ -100,7 +102,7 @@ export interface EvaluatorOptions {
    *  Mirrors the Python evaluator's trace hook; see src/trace.ts. */
   trace?: {
     readonly timing?: boolean;
-    record(op: string, context: string, state: unknown, depth?: number, ms?: number): void;
+    record(op: string, context: string, state: unknown, depth?: number, ms?: number, line?: number): void;
   };
 }
 
@@ -1218,14 +1220,25 @@ export class Evaluator {
         } catch (e) {
           // Kernel errors (`extrude: nothing to extrude ...`) carry no
           // position; the op that raised them does.
-          if (e instanceof EvalError && !e.loc && op.loc) throw new EvalError(e.message, op.loc);
-          if (e instanceof Error && !(e instanceof EvalError)) throw new EvalError(e.message, op.loc);
+          // The code and the fix travel with the message: the kernel names
+          // them, only the AST knows where.
+          if (e instanceof EvalError && !e.loc && op.loc) {
+            throw new EvalError(e.message, op.loc, { code: e.code, hint: e.hint });
+          }
+          if (e instanceof Error && !(e instanceof EvalError)) {
+            const c = e as CodedError;
+            // An OCCT failure arrives with a kernel code (CONSTRUCTION_FAILED);
+            // keep it in the text, but do not pass it off as a diagnostic code.
+            const code = asDiagnosticCode(c.code);
+            const message = !code && c.code ? `${e.message} (kernel: ${c.code})` : e.message;
+            throw new EvalError(message, op.loc, { code, hint: c.hint });
+          }
           throw e;
         }
         ctx = nextContext(ctx, op.type, op);
         if (this.trace) {
           const ms = this.trace.timing ? performance.now() - t0 : undefined;
-          this.trace.record(opDisplayName(op), ctx, state, this.pipelineDepth - 1, ms);
+          this.trace.record(opDisplayName(op), ctx, state, this.pipelineDepth - 1, ms, op.loc?.line);
         }
       }
 

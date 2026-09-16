@@ -11,6 +11,7 @@ import type {
   FuncDef,
 } from './ast.js';
 import { nextContext, static2DType, shapeOperatorKind, opKeyword } from './context.js';
+import type { DiagnosticCode } from './diagnostics.js';
 
 // --- Context types ---
 
@@ -26,10 +27,35 @@ export type Context =
 
 // --- Validation error ---
 
+/** A validation failure. `code` is stable and safe to key off; `message` is
+ *  prose and may be reworded. The fix goes in `hint`, apart from the message,
+ *  so a caller can show or drop it independently. */
 export interface ValidationError {
+  code: DiagnosticCode;
   message: string;
   nodeType: string;
+  hint?: string;
+  line?: number;
+  column?: number;
 }
+
+/** Ops whose one required positional argument has no default, and the name to
+ *  report. Table rather than a switch: adding an op is one line, and every
+ *  message comes out with the same wording. */
+const REQUIRED_ARG: Partial<Record<PipeOp['type'], string>> = {
+  Extrude: 'height',
+  Loft: 'sections list',
+  Hole: 'radius',
+  Fillet: 'radius',
+  Chamfer: 'radius',
+  Shell: 'thickness',
+  Offset: 'distance',
+  Scale: 'factor',
+  Mirror: 'axis',
+  Diff: 'shape',
+  Union: 'shape',
+  Inter: 'shape',
+};
 
 // --- Allowed operations per context ---
 
@@ -222,22 +248,31 @@ function validateExpression(
 }
 
 /**
- * `'rect' is not valid in 3D context (allowed in: Workplane, Face, ...)`, with
+ * `'rect' is not valid in 3D context (allowed in: Workplane, Face, ...)`, plus
  * a hint for the two common slips: drawing on a solid without selecting a
  * face, and applying a 3D op to an outline that was never extruded.
  */
-function invalidOpMessage(op: PipeOp, ctx: Context): string {
+function invalidOpMessage(op: PipeOp, ctx: Context): { message: string; hint?: string } {
   const name = opKeyword(op);
   const allowedIn = (Object.keys(CONTEXT_OPS) as Context[]).filter(c => CONTEXT_OPS[c].has(op.type));
-  let hint = '';
+  let hint: string | undefined;
   if (ctx === '3D' && (allowedIn.includes('Face') || allowedIn.includes('Workplane'))) {
-    hint = ` -- select a face to draw on first ('| faces >Z | ${name} ...')`;
+    hint = `select a face to draw on first ('| faces >Z | ${name} ...')`;
   } else if (ctx === 'Wire' && allowedIn.includes('Face')) {
-    hint = ` -- a wire has no area; draw a closed outline with 'sketch [...]', or give the wire a width with 'offset d'`;
+    hint = `a wire has no area; draw a closed outline with 'sketch [...]', or give the wire a width with 'offset d'`;
   } else if ((ctx === 'Face' || ctx === 'Wire' || ctx === 'Workplane') && allowedIn.includes('3D')) {
-    hint = ` -- extrude the outline first ('| extrude h | ${name} ...')`;
+    hint = `extrude the outline first ('| extrude h | ${name} ...')`;
   }
-  return `'${name}' is not valid in ${ctx} context (allowed in: ${allowedIn.join(', ')})${hint}`;
+  return {
+    message: `'${name}' is not valid in ${ctx} context (allowed in: ${allowedIn.join(', ')})`,
+    hint,
+  };
+}
+
+/** Source position of an op, if the parser recorded one. */
+function locOf(op: PipeOp): { line?: number; column?: number } {
+  const loc = (op as { loc?: { line: number; column: number } }).loc;
+  return loc ? { line: loc.line, column: loc.column } : {};
 }
 
 function validatePipeline(pipeline: Pipeline, errors: ValidationError[]): void {
@@ -248,7 +283,8 @@ function validatePipeline(pipeline: Pipeline, errors: ValidationError[]): void {
     if (ctx !== null) {
       const allowed = CONTEXT_OPS[ctx];
       if (allowed && !allowed.has(op.type)) {
-        errors.push({ message: invalidOpMessage(op, ctx), nodeType: op.type });
+        const { message, hint } = invalidOpMessage(op, ctx);
+        errors.push({ code: 'context.invalid-op', message, nodeType: op.type, hint, ...locOf(op) });
       }
       ctx = nextContext(ctx, op.type, op) as Context;
     } else {
@@ -274,94 +310,15 @@ function validatePipeline(pipeline: Pipeline, errors: ValidationError[]): void {
 }
 
 function validatePipeOpNested(op: PipeOp, errors: ValidationError[]): void {
-  // Check required arguments
-  switch (op.type) {
-    case 'Revolve':
-      // axis is always present (parser enforces it)
-      // degrees is optional (defaults to 360 at eval time)
-      // No further validation needed here.
-      break;
-    case 'Extrude':
-      if ('args' in op && op.args.length === 0) {
-        errors.push({
-          message: "extrude requires a height argument",
-          nodeType: 'Extrude',
-        });
-      }
-      break;
-    case 'Loft':
-      if ('args' in op && op.args.length === 0) {
-        errors.push({
-          message: "loft requires a sections list argument",
-          nodeType: 'Loft',
-        });
-      }
-      break;
-    case 'Hole':
-      if ('args' in op && op.args.length === 0) {
-        errors.push({
-          message: "hole requires a radius argument",
-          nodeType: 'Hole',
-        });
-      }
-      break;
-    case 'Fillet':
-      if ('args' in op && op.args.length === 0) {
-        errors.push({
-          message: "fillet requires a radius argument",
-          nodeType: 'Fillet',
-        });
-      }
-      break;
-    case 'Chamfer':
-      if ('args' in op && op.args.length === 0) {
-        errors.push({
-          message: "chamfer requires a radius argument",
-          nodeType: 'Chamfer',
-        });
-      }
-      break;
-    case 'Shell':
-      if ('args' in op && op.args.length === 0) {
-        errors.push({
-          message: "shell requires a thickness argument",
-          nodeType: 'Shell',
-        });
-      }
-      break;
-    case 'Offset':
-      if ('args' in op && op.args.length === 0) {
-        errors.push({
-          message: "offset requires a distance argument",
-          nodeType: 'Offset',
-        });
-      }
-      break;
-    case 'Scale':
-      if ('args' in op && op.args.length === 0) {
-        errors.push({
-          message: "scale requires a factor argument",
-          nodeType: 'Scale',
-        });
-      }
-      break;
-    case 'Mirror':
-      if ('args' in op && op.args.length === 0) {
-        errors.push({
-          message: "mirror requires an axis argument",
-          nodeType: 'Mirror',
-        });
-      }
-      break;
-    case 'Diff':
-    case 'Union':
-    case 'Inter':
-      if ('args' in op && op.args.length === 0) {
-        errors.push({
-          message: `${op.type.toLowerCase()} requires a shape argument`,
-          nodeType: op.type,
-        });
-      }
-      break;
+  // `revolve` is exempt: the parser enforces the axis, and the angle defaults
+  // to 360 at eval time.
+  const argName = REQUIRED_ARG[op.type];
+  if (argName && 'args' in op && op.args.length === 0) {
+    errors.push({
+      code: 'arg.missing',
+      message: `${opKeyword(op)} requires a ${argName} argument`,
+      nodeType: op.type,
+      ...locOf(op),
+    });
   }
 }

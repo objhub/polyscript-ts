@@ -4,6 +4,7 @@
 
 import type { Expression, NamedArg, SourceLocation } from '../ast.js';
 import type { WpState } from '../ocp-kernel.js';
+import type { DiagnosticCode } from '../diagnostics.js';
 
 // ---------------------------------------------------------------------------
 // Value types
@@ -68,11 +69,23 @@ export class Environment {
 
 export class EvalError extends Error {
   loc?: SourceLocation;
-  constructor(message: string, loc?: SourceLocation) {
+  /** Stable diagnostic code, when the thrower named one. Kernel-level throws
+   *  carry it on a plain Error; the evaluator moves it across when it attaches
+   *  the source position. */
+  code?: DiagnosticCode;
+  hint?: string;
+  /** The message without the ` at line N, column M` tail. A structured
+   *  diagnostic carries the position in its own fields and would otherwise
+   *  print it twice. */
+  rawMessage: string;
+  constructor(message: string, loc?: SourceLocation, opts: { code?: DiagnosticCode; hint?: string } = {}) {
     const locStr = loc ? ` at line ${loc.line}, column ${loc.column}` : '';
     super(message + locStr);
     this.name = 'EvalError';
+    this.rawMessage = message;
     this.loc = loc;
+    this.code = opts.code;
+    this.hint = opts.hint;
   }
 }
 

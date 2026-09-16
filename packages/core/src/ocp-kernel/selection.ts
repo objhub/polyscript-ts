@@ -5,7 +5,8 @@
 import type { WpState, Dir, Pln } from './types.js';
 import { cloneState } from './types.js';
 import { makePlane, getFaces, getEdges, getVertices, faceCenter, faceNormal, edgeCenter, edgeDirection, vertexPoint, to3d, projectTo2d } from './geometry.js';
-import { selectItems } from './selector.js';
+import { selectItems, selectorSourceForm } from './selector.js';
+import { codedError } from '../diagnostics.js';
 
 /**
  * Fail when a selector matched nothing.
@@ -20,9 +21,12 @@ import { selectItems } from './selector.js';
  */
 function checkSelection(kind: string, selector: string | undefined, selected: unknown[], total: number): void {
   if (!selector || selected.length > 0) return;
-  throw new Error(
-    `selector '${selector}' matched 0 of ${total} ${kind} -- ` +
-    'the following operation would apply to everything or to nothing',
+  throw codedError(
+    'selector.empty',
+    `selector '${selectorSourceForm(selector)}' matched 0 of ${total} ${kind}`,
+    "the next operation would apply to everything or to nothing; '>Z'/'<Z' are the "
+    + "topmost/bottommost, '=Z' is parallel to Z (a box's four upright edges), "
+    + "'+Z' is perpendicular to Z (its four sides)",
   );
 }
 

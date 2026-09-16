@@ -16,6 +16,8 @@ import { EvalError } from '@polyscript/core';
 import { extractParams as _extractParams } from '@polyscript/core';
 import type { ParamInfo, ParamSet } from '@polyscript/core';
 import type { Profile } from '@polyscript/core';
+import type { DiagnosticCode } from '@polyscript/core';
+import { asDiagnosticCode } from '@polyscript/core';
 import { initOC, memoizeKernel } from '@polyscript/core/ocp-kernel';
 import {
   exportSTLBuffer,
@@ -73,6 +75,12 @@ export interface BuildError {
   message: string;
   line?: number;
   column?: number;
+  /** Stable diagnostic code (`selector.empty`, `context.invalid-op`, ...).
+   *  Safe to key off; `message` is prose and may be reworded. */
+  code?: DiagnosticCode;
+  /** What to do about it. Kept apart from the message so a caller can show it
+   *  in a tooltip, or drop it. */
+  hint?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,6 +142,7 @@ export class PolyScriptEngine {
           message: e.message,
           line: e.line,
           column: e.column,
+          code: 'syntax.parse',
         });
       } else {
         errors.push({ phase: 'parse', message: String(e) });
@@ -144,7 +153,10 @@ export class PolyScriptEngine {
     // 2. Validate
     const valErrors = validate(program);
     for (const ve of valErrors) {
-      errors.push({ phase: 'validate', message: ve.message });
+      errors.push({
+        phase: 'validate', message: ve.message,
+        code: ve.code, hint: ve.hint, line: ve.line, column: ve.column,
+      });
     }
 
     // 3. Extract params
@@ -170,9 +182,13 @@ export class PolyScriptEngine {
       if (e instanceof EvalError) {
         errors.push({
           phase: 'evaluate',
-          message: e.message,
+          // rawMessage leaves out the ` at line N` tail: the position is in
+          // its own fields, and the editor gutter shows it anyway.
+          message: e.rawMessage ?? e.message,
           line: e.loc?.line,
           column: e.loc?.column,
+          code: asDiagnosticCode(e.code),
+          hint: e.hint,
         });
       } else {
         errors.push({ phase: 'evaluate', message: String(e) });
@@ -280,6 +296,7 @@ export class PolyScriptEngine {
           message: e.message,
           line: e.line,
           column: e.column,
+          code: 'syntax.parse',
         });
       } else {
         errors.push({ phase: 'parse', message: String(e) });
@@ -288,7 +305,10 @@ export class PolyScriptEngine {
     }
     const valErrors = validate(program);
     for (const ve of valErrors) {
-      errors.push({ phase: 'validate', message: ve.message });
+      errors.push({
+        phase: 'validate', message: ve.message,
+        code: ve.code, hint: ve.hint, line: ve.line, column: ve.column,
+      });
     }
     return { errors };
   }

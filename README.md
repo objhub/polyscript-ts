@@ -139,7 +139,7 @@ poly [build] <input.poly> [-o <output>]
 | `--params-file <path>` | Read parameters from JSON (`-D` wins) |
 | `--mesh-deflection <v>` | Mesh tessellation deflection (default 0.1; higher = coarser, smaller file) |
 | `--ascii-stl` | Write ASCII STL instead of the default binary (about 6x larger; diff-friendly) |
-| `--trace` | Per-step selection counts, volume and solid counts |
+| `--trace` | Per-step source line, selection (count and geometry), volume, solid and face counts |
 | `--timing` | Stage times (parse/init/evaluate/export) on stderr; with `--trace`, a per-step `ms` column |
 | `--strict` | Treat warnings as errors (exit 3) |
 | `--json` | Machine-readable report on stdout |
@@ -148,15 +148,43 @@ poly [build] <input.poly> [-o <output>]
 Other subcommands:
 
 ```bash
-poly check model.poly          # parse and validate only
-poly info model.poly           # bbox, volume, area, solids, validity, topology
-poly info model.poly --json
+poly verify model.poly         # everything needed to judge the result, in one call
+poly verify model.poly --json  # the same report as one object
+poly check model.poly          # parse and validate only (no kernel: milliseconds)
+poly info model.poly           # bbox, volume, area, solids, validity, topology, fingerprint
+poly diff before.poly after.poly   # did the edit change the geometry, and where
+poly explain selector.empty    # what a diagnostic code means and how to fix it
 poly dump-ast model.poly [--pretty]
 ```
 
-`poly info` and `--trace` are the main way to catch a broken model without
-looking at it -- a boolean that silently cut nothing still reports a valid
-single solid, but its volume does not change.
+`poly verify` is the main way to catch a broken model without looking at it: it
+parses, validates, builds, traces every step, measures the result and runs the
+post-build checks, and it is strict by default (any warning exits 3). It writes
+no file unless you pass `-o`.
+
+```text
+$ poly verify case.poly
+#  line  op        context        sel  where                   volume    solids  faces
+1  4     faces >Z  FaceSelection  1/6  c=(0,0,15) n=+Z a=4800  144000.0  1       6
+2  5     shell 2   3D             -    -                       24832.0   1       11
+
+✓ case.poly: 1 solid  bbox 80x60x30  volume 24832.0  faces 11  valid true  fp ce3907c3594f
+```
+
+The failures that matter here are the quiet ones: a boolean that cut nothing
+still reports a valid single solid, and a selector that picked the side face
+instead of the top reports the same `1/6`. So the trace carries the source
+line, and the `where` column carries the centroid, normal and area of what was
+selected -- `n=+Z` is the top face, and four side faces share no normal at all.
+
+Every diagnostic has a **stable code**, a position and a fix:
+
+```text
+case.poly:7:4 error selector.empty: selector '>Z and =Z' matched 0 of 48 edges -- the next
+operation would apply to everything or to nothing; '>Z' is the top, '=Z' is edges parallel to Z
+```
+
+`poly explain <code>` prints the long form; `poly explain` lists every code.
 
 ## Exit codes
 

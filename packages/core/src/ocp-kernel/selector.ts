@@ -22,6 +22,18 @@ import { pushWarning } from '../diagnostics.js';
  * Selectors arrive already normalised to the internal form (`|` parallel,
  * `#` perpendicular); see `normalizeSelector` in eval/pipe-selection.ts.
  */
+/**
+ * A selector back in the notation it was written in.
+ *
+ * The evaluator translates `=Z` to `|Z` and `+Z` to `#Z` before the kernel
+ * sees them (`normalizeSelector` in eval/pipe-selection.ts), and reporting the
+ * internal form sends the reader looking for a symbol the language does not
+ * have.
+ */
+export function selectorSourceForm(sel: string): string {
+  return sel.replace(/(^|(?<= ))\|/g, '=').replace(/(^|(?<= ))#/g, '+');
+}
+
 export function selectItems(
   _oc: OC,
   items: any[],
@@ -62,7 +74,8 @@ export function selectItems(
     // An unknown selector falls through to "return everything", which reads
     // as success: a typo like faces "Z" selects all six faces of a box.
     // Mirror the Python kernel's warning so --strict can catch it.
-    pushWarning(`unrecognized selector '${sel}' -- no filtering applied, all ${items.length} items selected`);
+    pushWarning(`unrecognized selector '${selectorSourceForm(sel)}' -- no filtering applied, all ${items.length} items selected`,
+      { code: 'selector.unknown', hint: "a selector is an operator plus an axis: '>Z' topmost, '<X' leftmost, '=Z' parallel to Z, '+Z' perpendicular to Z" });
     return items;
   }
   const op = sel[0];
@@ -99,8 +112,16 @@ export function selectItems(
     return result;
   }
 
-  // # = perpendicular to axis (internal form of SPEC's + selector)
-  // A face/edge is perpendicular to axis when its normal/direction is parallel to that axis
+  // # = the normal (or edge direction) is PERPENDICULAR to the axis.
+  // Internal form of SPEC's `+`: `faces "+Z"` is the four upright sides of a
+  // box, not its top and bottom (SPEC.md, "+X, +Y, +Z | 法線が指定軸に垂直").
+  //
+  // This used to test `|dot| > 0.9` -- the normal parallel to the axis -- on
+  // the reasoning that "a face is perpendicular to Z when its normal is
+  // parallel to Z". That is a different sense of perpendicular from the one
+  // SPEC, the Python kernel and CadQuery all use, and it made `+Z` a synonym
+  // for `=Z` on faces: both returned the top and the bottom, so there was no
+  // way to select the sides at all (devel/lessons.md 2026-09-07).
   if (op === '#' && directionFn) {
     const axisVec: Vec = axis === 'X' ? { x: 1, y: 0, z: 0 } :
                          axis === 'Y' ? { x: 0, y: 1, z: 0 } :
@@ -109,9 +130,8 @@ export function selectItems(
     for (const item of items) {
       const d = directionFn(item);
       if (d) {
-        // Dot product: if |dot| > 0.9, normal is parallel to axis => face is perpendicular
         const dot = Math.abs(d.x * axisVec.x + d.y * axisVec.y + d.z * axisVec.z);
-        if (dot > 0.9) result.push(item);
+        if (dot < 0.1) result.push(item);
       }
     }
     return result;
@@ -135,6 +155,7 @@ export function selectItems(
     return result;
   }
 
-  pushWarning(`unrecognized selector '${sel}' -- no filtering applied, all ${items.length} items selected`);
+  pushWarning(`unrecognized selector '${selectorSourceForm(sel)}' -- no filtering applied, all ${items.length} items selected`,
+      { code: 'selector.unknown', hint: "a selector is an operator plus an axis: '>Z' topmost, '<X' leftmost, '=Z' parallel to Z, '+Z' perpendicular to Z" });
   return items;
 }

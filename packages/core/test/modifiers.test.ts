@@ -814,46 +814,46 @@ describe('modifiers', () => {
   // ===========================================================================
 
   describe('integration: perpendicular selector', () => {
-    it('selectItems handles # operator -- selects faces perpendicular to axis', () => {
+    // `#A` keeps what is perpendicular to the axis: on a box, `faces "+Z"` is
+    // the four upright sides, not the top and bottom.
+    it('selectItems handles # operator -- the normal is perpendicular to the axis', () => {
       const faces = [
-        { id: 'f1' },
-        { id: 'f2' },
-        { id: 'f3' },
+        { id: 'top' },
+        { id: 'side' },
+        { id: 'bottom' },
       ];
       const centerFn = () => ({ x: 0, y: 0, z: 0 });
       const dirFn = (item: any) => {
         switch (item.id) {
-          case 'f1': return { x: 0, y: 0, z: 1 };
-          case 'f2': return { x: 1, y: 0, z: 0 };
-          case 'f3': return { x: 0, y: 0, z: -1 };
+          case 'top': return { x: 0, y: 0, z: 1 };
+          case 'side': return { x: 1, y: 0, z: 0 };
+          case 'bottom': return { x: 0, y: 0, z: -1 };
           default: return null;
         }
       };
 
       const result = selectItems(null as any, faces, '#Z', centerFn, dirFn);
-      expect(result).toHaveLength(2);
-      expect(result.map((f: any) => f.id)).toEqual(['f1', 'f3']);
+      expect(result.map((f: any) => f.id)).toEqual(['side']);
     });
 
-    it('selectItems handles #X -- selects faces perpendicular to X axis', () => {
+    it('selectItems handles #X -- the normal is perpendicular to X', () => {
       const faces = [
-        { id: 'f1' },
-        { id: 'f2' },
-        { id: 'f3' },
+        { id: 'top' },
+        { id: 'right' },
+        { id: 'left' },
       ];
       const centerFn = () => ({ x: 0, y: 0, z: 0 });
       const dirFn = (item: any) => {
         switch (item.id) {
-          case 'f1': return { x: 0, y: 0, z: 1 };
-          case 'f2': return { x: 1, y: 0, z: 0 };
-          case 'f3': return { x: -1, y: 0, z: 0 };
+          case 'top': return { x: 0, y: 0, z: 1 };
+          case 'right': return { x: 1, y: 0, z: 0 };
+          case 'left': return { x: -1, y: 0, z: 0 };
           default: return null;
         }
       };
 
       const result = selectItems(null as any, faces, '#X', centerFn, dirFn);
-      expect(result).toHaveLength(2);
-      expect(result.map((f: any) => f.id)).toEqual(['f2', 'f3']);
+      expect(result.map((f: any) => f.id)).toEqual(['top']);
     });
   });
 });

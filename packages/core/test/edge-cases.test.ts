@@ -546,16 +546,17 @@ describe('edge case: compound selector', () => {
         }
       };
 
-      // >Z selects the face with highest Z center = "top"
-      // #X selects faces whose normal is parallel to X axis = "right", "left"
-      // AND: >Z first picks "top", then #X filters further
-      // "top" has normal (0,0,1) which is NOT parallel to X, so it gets filtered out
-      // >Z gives [top]; #X applied to [top] finds nothing, because top's normal
-      // is Z, not X. The engine reports that honestly as an empty result -- it
-      // used to fall back to returning [top], which is how a mis-typed selector
-      // turned into "select everything" downstream.
-      const result = selectItems(null as any, faces, '>Z and #X', centerFn, dirFn);
-      expect(result).toHaveLength(0);
+      // >Z picks the face with the highest Z centre = "top". #X then keeps what
+      // is perpendicular to X: top's normal is (0,0,1), which is perpendicular
+      // to X, so it survives.
+      expect(selectItems(null as any, faces, '>Z and #X', centerFn, dirFn)
+        .map((f: any) => f.id)).toEqual(['top']);
+
+      // |X wants a normal parallel to X, which top's is not. The engine reports
+      // that honestly as an empty result -- it used to fall back to returning
+      // [top], which is how a mis-typed selector turned into "select
+      // everything" downstream.
+      expect(selectItems(null as any, faces, '>Z and |X', centerFn, dirFn)).toHaveLength(0);
     });
 
     it('OR selector returns union of results', () => {
@@ -609,10 +610,10 @@ describe('edge case: compound selector', () => {
     it('compound AND faces selector followed by shell calls shell with filtered faces', () => {
       const oc = createMockOC();
       const evaluator = new Evaluator({ oc });
-      // The mock's only face has centre z=5 and normal +Z, so `>Z +Z` is the
-      // compound that actually matches it. (`>Z +X` matches nothing, which is
-      // now an error -- see the test below.)
-      const ast = parse('box 10 10 10 | faces >Z +Z | shell 1');
+      // The mock's only face has centre z=5 and normal +Z. `+X` keeps what is
+      // perpendicular to X, and a +Z normal is, so `>Z +X` matches it.
+      // (`>Z +Z` matches nothing -- see the test below.)
+      const ast = parse('box 10 10 10 | faces >Z +X | shell 1');
       const result = evaluator.evaluate(ast);
 
       expect(isWpState(result)).toBe(true);
@@ -623,8 +624,9 @@ describe('edge case: compound selector', () => {
     it('a compound selector that matches nothing is an error, not a silent no-op', () => {
       const oc = createMockOC();
       const evaluator = new Evaluator({ oc });
-      // The mock face's normal is +Z, so it is not perpendicular to X.
-      expect(() => evaluator.evaluate(parse('box 10 10 10 | faces >Z +X | shell 1')))
+      // The mock face's normal is +Z, so it is not perpendicular to Z -- and a
+      // top face never is, which makes `>Z +Z` a contradiction by construction.
+      expect(() => evaluator.evaluate(parse('box 10 10 10 | faces >Z +Z | shell 1')))
         .toThrow(/matched 0 of/);
     });
   });

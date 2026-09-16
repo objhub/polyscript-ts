@@ -7,9 +7,16 @@ export { validate } from './validator.js';
 export type { Context, ValidationError } from './validator.js';
 export { Evaluator, Environment, EvalError, evaluate, evaluateExpressions, resultShape, resultColorParts } from './evaluator.js';
 export type { Value, UserFunc, EvaluatorOptions } from './evaluator.js';
-export { Trace } from './trace.js';
-export type { TraceStep, TraceOptions } from './trace.js';
-export { drainWarnings } from './diagnostics.js';
+export { Trace, selectionText } from './trace.js';
+export type { TraceStep, TraceOptions, TraceSelection } from './trace.js';
+export {
+  DIAGNOSTIC_CODES, asDiagnosticCode, makeDiagnostic, formatDiagnostic, pushDiagnostic, pushWarning,
+  drainDiagnostics, codedError, explain,
+} from './diagnostics.js';
+export type { Diagnostic, DiagnosticCode, Severity, CodedError } from './diagnostics.js';
+export { fingerprint, FINGERPRINT_PRECISION } from './fingerprint.js';
+export { runChecks } from './checks.js';
+export type { ShapeFacts } from './fingerprint.js';
 export { extractParams } from './params.js';
 export type { ParamInfo, ParamSet } from './params.js';
 export { ProfileError, parseProfileBlock, extractProfile, stripProfileBlock } from './profile.js';

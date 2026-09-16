@@ -67,15 +67,19 @@ export function buildOverrides(
 }
 
 /**
- * Warn on override keys not seen in top-level assignments.
- * Uses extractParams + a regex fallback.
+ * Override keys not seen in any top-level assignment — the -D flags that were
+ * silently ignored, which is how a build comes out with the file's own
+ * dimensions while the report claims the requested ones.
+ *
+ * Uses extractParams + a regex fallback. Returns the names; the caller decides
+ * how to report them.
  */
-export function warnUnknownParams(
+export function unknownParams(
   source: string,
   overrides: Record<string, unknown>,
   extractParamsFn: (source: string) => { params: Array<{ name: string }> },
-): void {
-  if (Object.keys(overrides).length === 0) return;
+): string[] {
+  if (Object.keys(overrides).length === 0) return [];
   const known = new Set<string>();
   try {
     const paramSet = extractParamsFn(source);
@@ -89,9 +93,5 @@ export function warnUnknownParams(
     known.add(m[1].replace(/^\$/, ''));
     m = re.exec(source);
   }
-  for (const name of Object.keys(overrides)) {
-    if (!known.has(name.replace(/^\$/, ''))) {
-      console.error(`Warning: -D ${name}: no top-level assignment found in input`);
-    }
-  }
+  return Object.keys(overrides).filter((name) => !known.has(name.replace(/^\$/, '')));
 }
