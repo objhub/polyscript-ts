@@ -1,6 +1,0 @@
-# Hex bolt (head + shaft, no thread)
-polygon 6 8
- | extrude 5
- | faces ">Z" | workplane
- | circle 4 | extrude 25
- | faces ">Z" | chamfer 1

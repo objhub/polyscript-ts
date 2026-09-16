@@ -1,0 +1,56 @@
+# Hex nut for the M16 bolt in 19_threaded_bolt
+#
+# The internal thread is cut with the bolt's own groove profile, so the two
+# models stay in step: change `pitch` in both and they still mate.
+#
+# The nut is the bolt's negative, so it is built that way. A threaded plug --
+# the bolt's shank grown by the running clearance -- is made first and then
+# subtracted from the hex blank. Two reasons to go the long way round:
+# - The helical boolean has to happen inside an oversized blank (see
+#   19_threaded_bolt): a tool that crosses a planar end face shatters or
+#   silently cuts nothing. A through-hole tool must cross both faces of the
+#   nut, so the helix is swept into a tall plug instead, where it is buried,
+#   and only the finished plug meets the nut.
+# - Subtracting a solid whose surface is already the thread is an ordinary
+#   solid-solid cut, which OCCT handles without the helical failure modes.
+#
+# JIS B 1181 / ISO 4032 style 1, M16: across flats s = 24, height m = 14.8.
+# The hex is chamfered before the hole is cut: chamfering the top face after
+# would ask OCCT to round the helical edge of the thread.
+
+pitch = 2
+r = 8          # nominal radius, d16 / 2 -- the bolt's major radius
+nut_h = 14.8   # m, ISO 4032 style 1
+hr = 13.856    # hex circumradius: across flats 24 / sqrt(3)
+
+# Running clearance, applied to the radius. The nut's major radius becomes
+# r + fit and its minor radius (r + fit) - gd, so every flank clears the
+# bolt's by `fit` measured radially -- about 0.87 * fit normal to the flank.
+# 0.25 mm is a printable fit for a 0.4 mm nozzle: enough for the bolt to run
+# in, small enough that the joint does not rattle. Print both at the same
+# clearance or they will not match.
+fit = 0.25
+rn = r + fit
+
+# Groove profile, identical to the bolt's: 60-degree flanks, ISO crest
+# truncation of pitch/8, and a lead so the tool overhangs the surface it cuts
+# rather than being tangent to it (tangency leaves micron-thin slivers).
+land = pitch / 8
+hw = (pitch - land) / 2
+gd = hw * 1.7320508
+lead = gd / 8
+groove = polyline [(lead, -(hw * (1 + lead / gd))),
+                   (-gd, 0),
+                   (lead, hw * (1 + lead / gd))]
+
+# The plug: a threaded rod long enough to pass right through the nut. Its
+# blank runs 8 mm past the tool at both ends so the helix stays buried; the
+# plain cylinder left at the two ends sits outside the nut and never shows.
+plug = cylinder rn (nut_h + 16) | translate 0 0 (nut_h / 2)
+ | diff (helix pitch (nut_h + 4) rn | sweep groove | translate 0 0 -2)
+
+polygon 6 hr
+ | extrude nut_h
+ | faces ">Z" | chamfer 1
+ | faces "<Z" | chamfer 1
+ | diff plug

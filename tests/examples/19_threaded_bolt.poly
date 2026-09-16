@@ -19,11 +19,25 @@
 #   The guard is: half-width at the tool's outer edge, hw * (lead + gd) / gd,
 #   must stay below pitch / 2 -- which is why `lead` shrinks as `land` does.
 
+# M16 coarse (JIS B 0205 / ISO 261: d16 x P2), with the head from JIS B 1180
+# (across flats s = 24, height k = 10). The coarse pitch of 2 mm is the
+# largest in common use, which is what makes the thread printable: a 1.5 mm
+# crest-to-root depth with a 0.25 mm flat on top clears a 0.4 mm nozzle,
+# where M8's P1.25 (0.95 mm deep, 0.16 mm flat) does not.
 pitch = 2
-r = 4          # shank radius
+r = 8          # shank radius: d16 / 2
 shank = 24     # shank length
-head_h = 6
-hr = 8         # hex head circumradius
+
+# Threaded length, measured from the tip, as JIS B 1180 / ISO 4014 measure `b`.
+# A partly threaded hex bolt has b = 2d + 6 for lengths up to 125 mm, so an
+# M16 would be b = 38 -- longer than this 24 mm shank, which is why a bolt
+# this short is fully threaded (JIS B 1180 全ねじ / ISO 4017). Set a smaller
+# value here to cut a partial thread and leave a plain shank under the head.
+thread_len = shank
+runout = 1     # 不完全ねじ部: the tool enters this far below the thread start
+
+head_h = 10
+hr = 13.856         # hex head circumradius
 
 land = pitch / 8       # crest flat left between grooves (ISO metric truncation)
 hw = (pitch - land) / 2   # groove half-width at the shank surface
@@ -38,8 +52,15 @@ groove = polyline [(lead, -(hw * (1 + lead / gd))),
                    (-gd, 0),
                    (lead, hw * (1 + lead / gd))]
 
-# Blank tall enough that the tool (z = 0 .. 26.7) stays buried at both ends.
-blank = cylinder r 38 | translate 0 0 12 | diff (helix pitch 26 r | sweep groove)
+# Blank tall enough that the tool stays buried at both ends: it must never
+# cross, or begin near, a planar face of the blank. The tool runs from
+# `runout` below the thread start to 1 past the shank's tip; with
+# thread_len = shank that is the whole shank, and the head end of the thread
+# then runs out into the head seat, as a rolled thread does.
+blank = cylinder r 38 | translate 0 0 12
+ | diff (helix pitch (thread_len + runout + 1) r
+         | sweep groove
+         | translate 0 0 (shank - thread_len))
 
 # Trim the fully-threaded shank out of the blank and seat it on the head.
 shaft = blank
