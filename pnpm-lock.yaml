@@ -34,8 +34,8 @@ importers:
         specifier: ^13.0.0
         version: 13.1.0
       occt-wasm:
-        specifier: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps3/occt-wasm-4.3.2-ps3.tgz
-        version: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps3/occt-wasm-4.3.2-ps3.tgz
+        specifier: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps4/occt-wasm-4.3.2-ps4.tgz
+        version: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps4/occt-wasm-4.3.2-ps4.tgz
     devDependencies:
       '@types/node':
         specifier: ^25.5.0
@@ -53,8 +53,8 @@ importers:
   packages/core:
     dependencies:
       occt-wasm:
-        specifier: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps3/occt-wasm-4.3.2-ps3.tgz
-        version: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps3/occt-wasm-4.3.2-ps3.tgz
+        specifier: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps4/occt-wasm-4.3.2-ps4.tgz
+        version: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps4/occt-wasm-4.3.2-ps4.tgz
       opentype.js:
         specifier: ^1.3.4
         version: 1.3.4
@@ -886,9 +886,9 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  occt-wasm@https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps3/occt-wasm-4.3.2-ps3.tgz:
-    resolution: {integrity: sha512-HdeuFDm1W+7oVUzp60VBat66cQ9EffjxLLjyjBBPdO1IFpaNj0We/dSwGXxtN3XY1VD9nZSeyXjKGxyFvBXjxQ==, tarball: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps3/occt-wasm-4.3.2-ps3.tgz}
-    version: 4.3.2-ps3
+  occt-wasm@https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps4/occt-wasm-4.3.2-ps4.tgz:
+    resolution: {integrity: sha512-kUOjugPlNbhHes+/jOKrdS7S7mN0t5o3tKcNi2OYXQ73ae8xTVcA6mdGy5d0qZZ87RQU767Aj4NT6MUPxUIcPA==, tarball: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps4/occt-wasm-4.3.2-ps4.tgz}
+    version: 4.3.2-ps4
 
   opentype.js@1.3.4:
     resolution: {integrity: sha512-d2JE9RP/6uagpQAVtJoF0pJJA/fgai89Cc50Yp0EJHk+eLp6QQ7gBoblsnubRULNY132I0J1QKMJ+JTbMqz4sw==}
@@ -1780,7 +1780,7 @@ snapshots:
 
   nanoid@3.3.11: {}
 
-  occt-wasm@https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps3/occt-wasm-4.3.2-ps3.tgz:
+  occt-wasm@https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps4/occt-wasm-4.3.2-ps4.tgz:
     dependencies:
       comlink: 4.4.2
 
