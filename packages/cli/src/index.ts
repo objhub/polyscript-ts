@@ -88,6 +88,9 @@ const FORMAT_EXTENSIONS: Record<string, string[]> = {
   // Without this the unknown extension fell back to STL and silently produced
   // x.gltf.stl.
   gltf: ['.gltf'],
+  // A line drawing, not a solid: OCCT hidden-line removal per view. Listed
+  // here so `-o x.svg` renders one instead of falling back to STL.
+  svg: ['.svg'],
 };
 
 function formatFromExtension(file: string): string {
@@ -362,9 +365,9 @@ program
 // build (default) subcommand
 program
   .command('build <file>', { isDefault: true })
-  .description('Build a .poly file to STL/STEP')
+  .description('Build a .poly file to STL/STEP/glTF/SVG')
   .option('-o <output>', 'Output file path')
-  .option('--format <fmt>', 'Output format (stl|step|glb)')
+  .option('--format <fmt>', 'Output format (stl|step|glb|svg)')
   .option(
     '-D, --define <value>',
     'Override parameter (repeatable: -D width=100 -D height=50)',
@@ -378,15 +381,22 @@ program
   .option('--json', 'Machine-readable JSON report on stdout')
   .option('--mesh-deflection <value>', 'STL/glTF mesh precision (default 0.1; larger = coarser)', parseFloat)
   .option('--ascii-stl', 'Write ASCII STL instead of binary (about 6x larger; diff-friendly)')
+  .option(
+    '--view <names>',
+    'SVG viewpoints, comma-separated (front|back|top|bottom|left|right|iso). '
+    + 'One name draws a single panel; the default is front,top,right,iso',
+  )
+  .option('--view-size <px>', 'SVG panel size in px (default 240)', parseFloat)
+  .option('--no-hidden', 'SVG: omit occluded edges instead of dashing them')
   .option('-v, --verbose', 'Print B-Rep facts about the result')
   .action(async (file: string, opts: {
     o?: string; format?: string; define?: string[]; paramsFile?: string;
     trace?: boolean; timing?: boolean; strict?: boolean; json?: boolean; meshDeflection?: number; verbose?: boolean;
-    asciiStl?: boolean;
+    asciiStl?: boolean; view?: string; viewSize?: number; hidden?: boolean;
   }) => {
     const name = basename(file);
     const m = await loadModel(file, opts);
-    const { exportShape } = await import('@polyscript/core/ocp-kernel');
+    const { exportShape, SVG_VIEWS } = await import('@polyscript/core/ocp-kernel');
 
     // Determine output path
     const inputBase = basename(file, extname(file));
@@ -411,11 +421,34 @@ program
       // Colour only reaches glTF; collecting parts for STL/STEP would be
       // wasted kernel work on every build.
       const parts = fmt === 'glb' ? resultColorParts(m.oc, m.result) : undefined;
+      // --view names the SVG panels. An unknown name is rejected here: the
+      // renderer would fall back to its default and the mistake would be
+      // invisible in the output. Usage error, so it is not a diagnostic.
+      type View = (typeof SVG_VIEWS)[number];
+      let views: View[] | undefined;
+      if (opts.view !== undefined) {
+        const names = opts.view.split(',').map((v) => v.trim()).filter(Boolean);
+        const bad = names.filter((v) => !(SVG_VIEWS as readonly string[]).includes(v));
+        if (bad.length) {
+          console.error(
+            `poly: unknown view ${bad.map((b) => `'${b}'`).join(', ')} `
+            + `-- expected one of ${SVG_VIEWS.join(', ')}`,
+          );
+          process.exit(1);
+        }
+        views = names as View[];
+      }
       try {
         await exportShape(m.oc, m.shape, outputPath, {
           linearDeflection: opts.meshDeflection,
           asciiStl: opts.asciiStl,
           parts,
+          svg: {
+            views,
+            width: opts.viewSize,
+            height: opts.viewSize,
+            showHidden: opts.hidden,
+          },
         });
       } catch (e) {
         const d = evalDiagnostic(e as Error);

@@ -9,6 +9,8 @@
  * they only pull in Node APIs when actually called.
  */
 
+import { renderMultiviewSVG, renderShapeSVG } from 'occt-wasm';
+import type { ViewName } from 'occt-wasm';
 import type { OC, Shape } from './types.js';
 import type { ColorPart } from './color-parts.js';
 
@@ -167,6 +169,57 @@ export async function exportSTEP(
   writeFileSync(filePath, data, 'utf-8');
 }
 
+/** The viewpoints an SVG export can be asked for. */
+export const SVG_VIEWS: readonly ViewName[] = [
+  'front', 'back', 'top', 'bottom', 'left', 'right', 'iso',
+] as const;
+
+export interface SvgExportOptions {
+  /** Viewpoints to draw. One name renders a single panel; several render a
+   *  grid. Default: front / top / right / iso. */
+  views?: ViewName[];
+  /** Panel width and height in px (default 240 each). */
+  width?: number;
+  height?: number;
+  /** Panels per row in a grid (default 2). */
+  columns?: number;
+  /** Draw occluded edges dashed (default true). */
+  showHidden?: boolean;
+  /** Edge sampling deflection in model units. Default ~0.2% of the bounding
+   *  box diagonal, so the output does not depend on the model's scale. */
+  deflection?: number;
+}
+
+/** Render a Shape as an SVG line drawing: OCCT hidden-line removal per view,
+ *  visible edges solid and occluded edges dashed.
+ *
+ *  This is a picture, not a measurement — the edges are sampled at
+ *  `deflection` and projected to pixel coordinates. For numbers, measure the
+ *  shape itself. */
+export function exportSVGString(
+  oc: OC,
+  shape: Shape,
+  options: SvgExportOptions = {},
+): string {
+  const { views, ...rest } = options;
+  if (views && views.length === 1) {
+    return renderShapeSVG(oc, shape, views[0], rest);
+  }
+  return renderMultiviewSVG(oc, shape, views ? { ...rest, views } : rest);
+}
+
+export async function exportSVG(
+  oc: OC,
+  shape: Shape,
+  filePath: string,
+  options: SvgExportOptions = {},
+): Promise<void> {
+  const data = exportSVGString(oc, shape, options);
+  const { writeFileSync } = await import('node:fs');
+  await ensureParentDir(filePath);
+  writeFileSync(filePath, data, 'utf-8');
+}
+
 export interface ExportShapeOptions {
   linearDeflection?: number;
   /** Write ASCII STL instead of binary. */
@@ -178,6 +231,8 @@ export interface ExportShapeOptions {
   /** Per-part colours from colorParts(). glTF only; wins over `color`.
    *  STL and STEP carry no colour, so passing these is harmless there. */
   parts?: ColorPart[];
+  /** Viewpoints and panel options for SVG. Ignored by every other format. */
+  svg?: SvgExportOptions;
 }
 
 export async function exportShape(
@@ -198,6 +253,8 @@ export async function exportShape(
       color: options.color,
       parts: options.parts,
     });
+  } else if (ext.endsWith('.svg')) {
+    await exportSVG(oc, shape, filePath, options.svg ?? {});
   } else if (ext.endsWith('.gltf')) {
     // OCCT's XCAF writer emits the binary container only. Writing those bytes
     // to a .gltf file would mislabel them, so say so instead of guessing.

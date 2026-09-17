@@ -74,10 +74,13 @@ export {
   exportSTLString, exportSTLBuffer, exportSTEPString,
   exportBREPString, importBREP,
   exportGLTFBuffer, exportGLTF,
+  exportSVG, exportSVGString, SVG_VIEWS,
   tessellate,
   edgeSegments,
 } from './export.js';
-export type { TessellationMesh, ExportOptions, ExportShapeOptions, TessellateOptions } from './export.js';
+export type {
+  TessellationMesh, ExportOptions, ExportShapeOptions, SvgExportOptions, TessellateOptions,
+} from './export.js';
 
 // Color parts (per-part colors that survive the pipeline)
 export { colorParts, hasDistinctColors } from './color-parts.js';
