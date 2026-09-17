@@ -695,4 +695,73 @@ program
     process.exit(EXIT_OK);
   });
 
+program
+  .command('section <file>')
+  .description('Cut the model with a plane and report the contours (mm)')
+  .option(
+    '--plane <spec>',
+    'Cutting planes, comma-separated: xy, xz, yz, or an axis value like Z=10. '
+    + 'A plane without a value cuts through the centre of the bounding box',
+    'xz,yz',
+  )
+  .option('-o <output>', 'Also write the contours as SVG (path data is in mm)')
+  .option('--deflection <mm>', 'Curve sampling for the drawn path (default 0.001)', parseFloat)
+  .option(
+    '-D, --define <value>',
+    'Override parameter (repeatable)',
+    (v: string, prev: string[] = []) => [...prev, v],
+    [] as string[],
+  )
+  .option('--params-file <path>', 'JSON file with parameter overrides')
+  .option('--json', 'Machine-readable JSON report on stdout')
+  .action(async (file: string, opts: {
+    plane: string; o?: string; deflection?: number;
+    define?: string[]; paramsFile?: string; json?: boolean;
+  }) => {
+    const name = basename(file);
+    const m = await loadModel(file, opts);
+    const {
+      sectionShape, sectionSVG, formatSectionReport, parseSectionSpecs,
+    } = await import('@polyscript/core/ocp-kernel');
+
+    if (!m.shape) {
+      emit(!!opts.json, {
+        ok: true, phase: 'section', file: name, diagnostics: m.diagnostics, sections: [],
+      }, ['No geometry (library-only file)']);
+      process.exit(EXIT_OK);
+    }
+    if (!opts.json) printDiagnostics(m.diagnostics, name);
+
+    let specs: ReturnType<typeof parseSectionSpecs> = [];
+    try {
+      specs = parseSectionSpecs(opts.plane);
+    } catch (e) {
+      console.error(`poly: ${(e as Error).message}`);
+      process.exit(1);
+    }
+
+    const results = specs.map((spec) => sectionShape(m.oc, m.shape!, spec, {
+      deflection: opts.deflection,
+    }));
+
+    if (opts.o) {
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync(opts.o, sectionSVG(results), 'utf-8');
+    }
+
+    const lines = formatSectionReport(results);
+    if (opts.o) lines.push(`wrote ${opts.o}`);
+    emit(!!opts.json, {
+      ok: true, phase: 'section', file: name, diagnostics: m.diagnostics,
+      sections: results.map((r) => ({
+        axis: r.axis, value: r.value, uAxis: r.uAxis, vAxis: r.vAxis,
+        loops: r.loops.map((l) => ({
+          closed: l.closed, area: l.area, areaExact: l.areaExact, length: l.length,
+          bbox: l.bbox, points: l.points.length,
+        })),
+      })),
+    }, lines);
+    process.exit(EXIT_OK);
+  });
+
 program.parse();

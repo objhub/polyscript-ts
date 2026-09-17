@@ -82,6 +82,10 @@ export type {
   TessellationMesh, ExportOptions, ExportShapeOptions, SvgExportOptions, TessellateOptions,
 } from './export.js';
 
+// Cross sections (measurements, not pictures)
+export { sectionShape, sectionSVG, formatSectionReport, parseSectionSpecs } from './section.js';
+export type { SectionAxis, SectionSpec, SectionLoop, SectionResult, SectionOptions } from './section.js';
+
 // Color parts (per-part colors that survive the pipeline)
 export { colorParts, hasDistinctColors } from './color-parts.js';
 export type { ColorPart, RGB } from './color-parts.js';
