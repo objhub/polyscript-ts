@@ -134,7 +134,11 @@ poly [build] <input.poly> [-o <output>]
 | `-o file.stl` | Export as STL (default: `<input>.stl`) |
 | `-o file.step` | Export as STEP (`.stp` also accepted) |
 | `-o file.glb` | Export as glTF binary, with `color` preserved per part |
-| `--format <fmt>` | `stl`, `step` or `glb`; overrides the extension |
+| `-o file.svg` | Export as a line drawing: hidden-line removal per view, occluded edges dashed |
+| `--format <fmt>` | `stl`, `step`, `glb` or `svg`; overrides the extension |
+| `--view <names>` | SVG viewpoints, comma-separated: `front` `back` `top` `bottom` `left` `right` `iso`. One name draws a single panel; the default is `front,top,right,iso` |
+| `--view-size <px>` | SVG panel size (default 240) |
+| `--no-hidden` | SVG: omit occluded edges instead of dashing them |
 | `-D, --define <k=v>` | Override a parameter (repeatable) |
 | `--params-file <path>` | Read parameters from JSON (`-D` wins) |
 | `--mesh-deflection <v>` | Mesh tessellation deflection (default 0.1; higher = coarser, smaller file) |
@@ -152,10 +156,29 @@ poly verify model.poly         # everything needed to judge the result, in one c
 poly verify model.poly --json  # the same report as one object
 poly check model.poly          # parse and validate only (no kernel: milliseconds)
 poly info model.poly           # bbox, volume, area, solids, validity, topology, fingerprint
+poly section model.poly        # cut with a plane, report the contours in mm
+poly section model.poly --plane Z=10 -o cut.svg
 poly diff before.poly after.poly   # did the edit change the geometry, and where
 poly explain selector.empty    # what a diagnostic code means and how to fix it
 poly dump-ast model.poly [--pretty]
 ```
+
+`poly section` answers what a picture cannot: it cuts the model with a plane and
+prints the contours, measured on the analytic curves rather than on a mesh, so a
+wall thickness or a bore diameter is read rather than estimated.
+
+```text
+$ poly section case.poly --plane Y=0
+section XZ @ Y=0: 4 loops
+  loop 0: closed  bbox 30.25x5.9 at (15,0)  area 68.3  length 72.3  points 6
+  loop 1: closed  bbox 30.25x2 at (-45.25,0)  area 60.5  length 64.5  points 4
+```
+
+Two loops mean a hollow section, one means solid. `area` and `length` are exact
+(a r=20 bore reads 1256.6371 and 125.6637 — pi*r^2 and 2*pi*r); `bbox` and
+`points` come from the drawn path, which is sampled. With `-o` the same cuts are
+written as SVG whose **path data is in millimetres**, the display scale parked in
+a group transform, so the corners can be read straight out of the `d` attribute.
 
 `poly verify` is the main way to catch a broken model without looking at it: it
 parses, validates, builds, traces every step, measures the result and runs the
