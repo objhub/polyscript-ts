@@ -3,16 +3,12 @@
 # The internal thread is cut with the bolt's own groove profile, so the two
 # models stay in step: change `pitch` in both and they still mate.
 #
-# The nut is the bolt's negative, so it is built that way. A threaded plug --
-# the bolt's shank grown by the running clearance -- is made first and then
-# subtracted from the hex blank. Two reasons to go the long way round:
-# - The helical boolean has to happen inside an oversized blank (see
-#   19_threaded_bolt): a tool that crosses a planar end face shatters or
-#   silently cuts nothing. A through-hole tool must cross both faces of the
-#   nut, so the helix is swept into a tall plug instead, where it is buried,
-#   and only the finished plug meets the nut.
-# - Subtracting a solid whose surface is already the thread is an ordinary
-#   solid-solid cut, which OCCT handles without the helical failure modes.
+# The nut is the bolt's negative, so it is built that way: a threaded plug --
+# the bolt's shank grown by the running clearance, threaded exactly as the
+# bolt is -- and the hex blank minus that plug. Subtracting a solid whose
+# surface already is the thread is one ordinary solid-solid cut, and it keeps
+# the two thread forms identical by construction rather than by a second,
+# hand-mirrored profile.
 #
 # JIS B 1181 / ISO 4032 style 1, M16: across flats s = 24, height m = 14.8.
 # The hex is chamfered before the hole is cut: chamfering the top face after
@@ -43,11 +39,12 @@ groove = polyline [(lead, -(hw * (1 + lead / gd))),
                    (-gd, 0),
                    (lead, hw * (1 + lead / gd))]
 
-# The plug: a threaded rod long enough to pass right through the nut. Its
-# blank runs 8 mm past the tool at both ends so the helix stays buried; the
-# plain cylinder left at the two ends sits outside the nut and never shows.
-plug = cylinder rn (nut_h + 16) | translate 0 0 (nut_h / 2)
- | diff (helix pitch (nut_h + 4) rn | sweep groove | translate 0 0 -2)
+# The plug: a threaded rod 1 mm longer than the nut at both ends, so it cuts
+# clean through. The helical tool runs out through both of its end faces; that
+# needs occt-wasm ps3 or later (devel/occt-helix-cut-bug202609.md), before
+# which the helix had to be buried in an oversized blank.
+plug = cylinder rn (nut_h + 2) | translate 0 0 (nut_h / 2)
+ | diff (helix pitch (nut_h + 6) rn | sweep groove | translate 0 0 -3)
 
 polygon 6 hr
  | extrude nut_h

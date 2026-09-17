@@ -8,13 +8,13 @@
     "max": [
       13.856,
       11.9996,
-      34.0
+      40.0
     ]
   },
-  "volume": 9023.0714,
+  "volume": 10449.5876,
   "topology": {
-    "faces": 31,
-    "edges": 78,
-    "vertices": 50
+    "faces": 27,
+    "edges": 66,
+    "vertices": 42
   }
 }

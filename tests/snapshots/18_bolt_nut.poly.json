@@ -3,7 +3,7 @@
     "min": [
       -13.856,
       -11.9996,
-      -0.0
+      0
     ],
     "max": [
       13.856,
@@ -11,10 +11,16 @@
       14.8
     ]
   },
-  "volume": 4614.7444,
+  "volume": 4614.7431,
   "topology": {
-    "faces": 30,
-    "edges": 72,
-    "vertices": 44
+    "faces": 31,
+    "edges": 75,
+    "vertices": 46
+  },
+  "source": {
+    "implementation": "typescript",
+    "poly_version": "0.1.4",
+    "kernel": "occt-wasm 4.3.2-ps3",
+    "generated_at": "2026-09-16T22:40:53.161Z"
   }
 }

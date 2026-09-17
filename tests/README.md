@@ -30,6 +30,7 @@ Python実装とTypeScript実装が同じスナップショットを共有し、�
 `poly info --json` からスナップショットを書き、`source` ブロックで出所を記録する。
 `source` の無いスナップショットは Python オラクル産(正しさの証拠)、
 `source.implementation = "typescript"` のものは変化検出用(人間が検証済みであることが前提)。
+現在 TS 由来なのは `18_bolt_nut`(2026-09-17: らせん工具が端面を横切る構成に変えたため Python オラクル(未修正 OCCT 7.9.3)では評価できない。体積は Python 時代の値 4614.7444 に対し 4614.7431 で一致、面数は 30 → 31)。
 引退前の全モデル照合と、そこで見つかった Python 側の欠陥は `devel/parity-ledger202609.md`。
 
 ## ファイル構成
