@@ -15,7 +15,7 @@
   "regenerated_at": "2026-09-16T08:32:54.973883+00:00",
   "provenance": {
     "note": "A snapshot without a `source` block is from the frozen Python oracle above and is evidence of correctness. A snapshot with `source.implementation = \"typescript\"` was produced by the code under test: it detects change, not correctness, and was human-verified when written.",
-    "last_typescript_regeneration": "2026-09-16T22:40:53.161Z",
+    "last_typescript_regeneration": "2026-09-17T01:53:04.178Z",
     "typescript_kernel": "occt-wasm 4.3.2-ps3"
   }
 }

@@ -1,4 +1,4 @@
-# Hex nut for the M16 bolt in 19_threaded_bolt
+# Hex nut for the M16 bolt in 19_iso_bolt
 #
 # The internal thread is cut with the bolt's own groove profile, so the two
 # models stay in step: change `pitch` in both and they still mate.

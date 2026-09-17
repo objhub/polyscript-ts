@@ -1,0 +1,26 @@
+{
+  "bbox": {
+    "min": [
+      -13.856,
+      -11.9996,
+      0
+    ],
+    "max": [
+      13.856,
+      11.9996,
+      40
+    ]
+  },
+  "volume": 10043.3411,
+  "topology": {
+    "faces": 34,
+    "edges": 87,
+    "vertices": 56
+  },
+  "source": {
+    "implementation": "typescript",
+    "poly_version": "0.1.4",
+    "kernel": "occt-wasm 4.3.2-ps3",
+    "generated_at": "2026-09-17T01:53:04.178Z"
+  }
+}

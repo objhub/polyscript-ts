@@ -3,7 +3,7 @@
  * Regenerate B-Rep regression snapshots from the TypeScript implementation.
  *
  *   bun tests/generate_snapshots.ts                 # every example
- *   bun tests/generate_snapshots.ts 19_threaded_bolt.poly [...]   # just these
+ *   bun tests/generate_snapshots.ts 19_iso_bolt.poly [...]   # just these
  *
  * Reads each example with the shipping `poly` binary (`poly info --json`) and
  * writes snapshots/<name>.json in the same shape the Python generator used, plus

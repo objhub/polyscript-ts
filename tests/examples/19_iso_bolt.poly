@@ -1,4 +1,4 @@
-# Hex bolt with thread
+# Hex bolt with an ISO metric thread (M16 x P2)
 #
 # Head at the bottom (prints flat, no supports), the thread cut straight into
 # the shank. M16 coarse (JIS B 0205 / ISO 261: d16 x P2) with the head from
