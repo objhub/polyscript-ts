@@ -31,6 +31,7 @@ export const DIAGNOSTIC_CODES = [
   'syntax.parse',
   'context.invalid-op',
   'arg.missing',
+  'arg.count',
   'def.shadows-builtin',
   'call.arity',
   'selector.empty',
@@ -174,6 +175,17 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
     why: 'The operation has no default for that argument, so there is nothing\n'
       + 'sensible to assume.',
     fix: 'Supply it: `fillet 2`, `shell 1.5`, `extrude 10`, `hole 3`.',
+  },
+  'arg.count': {
+    title: 'An operation got the wrong number of arguments for what it acts on',
+    why: '`rotate` takes three angles on a solid (about the world X, Y, Z axes)\n'
+      + 'and one angle on a 2D shape (about its workplane normal). A 2D shape\n'
+      + 'cannot leave its workplane, so `arc ... | rotate 90 0 0` does not\n'
+      + 'stand a path up; nothing is padded or ignored either.',
+    fix: 'Solid: all three angles, `rotate 0 0 45`. 2D shape: one angle,\n'
+      + '`rotate 45`. To draw in a vertical plane, start there or use 3D points:\n'
+      + '  workplane XZ | wire [arc (0,-25) (25,0) center:(0,0)] | sweep (circle 5)\n'
+      + '  arc (0,0,-25) (25,0,0) center:(0,0,0) | sweep (circle 5)',
   },
   'def.shadows-builtin': {
     title: 'A def has the name of a built-in function',

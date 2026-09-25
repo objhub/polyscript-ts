@@ -140,3 +140,28 @@ describe('a rotated or mirrored 2D shape stays 2D for the next op (issue 2026-09
     expect(validate(parse('box 10 10 10 | mirror "X" | extrude 5')).map(e => e.code)).toEqual(['context.invalid-op']);
   });
 });
+
+describe('the validator checks the rotate angle count where the context is known', () => {
+  const errs = (src: string) => validate(parse(src)).map(e => ({ code: e.code, hint: e.hint ?? '' }));
+
+  it('three angles on a Wire / Face stop at poly check, with the ways that work', () => {
+    const [e] = errs('arc (0, -25) (25, 0) center:(0, 0) | rotate 90 0 0 | sweep (circle 5)');
+    expect(e.code).toBe('arg.count');
+    expect(e.hint).toMatch(/workplane XZ \| wire \[arc/);
+    expect(errs('rect 10 10 | rotate 90 0 0 | extrude 5').map(e => e.code)).toEqual(['arg.count']);
+  });
+
+  it('one angle on a solid is arg.count too', () => {
+    expect(errs('box 10 10 10 | rotate 45').map(e => e.code)).toEqual(['arg.count']);
+  });
+
+  it('the legal counts pass, including a sketch on a face of a solid', () => {
+    expect(errs('box 10 10 10 | rotate 0 0 45')).toEqual([]);
+    expect(errs('rect 10 10 | rotate 45 | extrude 5')).toEqual([]);
+    expect(errs('box 10 10 10 | faces ">Z" | rect 5 5 | rotate 30 | cut')).toEqual([]);
+  });
+
+  it('an unknown context (a variable) is left to the evaluator', () => {
+    expect(errs('$p = rect 10 10\n$p | rotate 90 0 0')).toEqual([]);
+  });
+});

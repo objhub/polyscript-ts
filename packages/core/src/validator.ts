@@ -317,6 +317,32 @@ function invalidOpMessage(op: PipeOp, ctx: Context): { message: string; hint?: s
   };
 }
 
+/**
+ * `rotate` takes one angle on a 2D shape (in-plane) and three on a solid
+ * (SPEC 変形). The evaluator enforces the same rule; checking it here, where
+ * the context is known statically, stops `arc ... | rotate 90 0 0 | sweep`
+ * at `poly check` -- the usual attempt to stand a path drawn in XY up.
+ */
+function rotateArityError(n: number, ctx: Context): { message: string; hint?: string } | null {
+  if (ctx === 'Face' || ctx === 'Wire') {
+    if (n === 1) return null;
+    return {
+      message: `rotate on a 2D shape (${ctx}) takes 1 angle, about the workplane normal; got ${n}`,
+      hint: n === 3
+        ? "a 2D shape stays on its workplane: draw it on the plane you want ('workplane XZ | wire [arc ...] | sweep ...'), "
+          + "or give a path 3D points ('arc (0,0,-25) (25,0,0) center:(0,0,0)')"
+        : "turn it in its plane with one angle: 'rotate 45'",
+    };
+  }
+  if (ctx === '3D' && n !== 3) {
+    return {
+      message: `rotate on a solid takes 3 angles (rx ry rz); got ${n}`,
+      hint: n === 1 ? "about Z only: 'rotate 0 0 45'" : 'give all three, zeros included',
+    };
+  }
+  return null;
+}
+
 /** Source position of an op, if the parser recorded one. */
 function locOf(op: PipeOp): { line?: number; column?: number } {
   const loc = (op as { loc?: { line: number; column: number } }).loc;
@@ -333,6 +359,9 @@ function validatePipeline(pipeline: Pipeline, errors: ValidationError[]): void {
       if (allowed && !allowed.has(op.type)) {
         const { message, hint } = invalidOpMessage(op, ctx);
         errors.push({ code: 'context.invalid-op', message, nodeType: op.type, hint, ...locOf(op) });
+      } else if (op.type === 'Rotate') {
+        const e = rotateArityError(op.args.length, ctx);
+        if (e) errors.push({ code: 'arg.count', nodeType: op.type, ...e, ...locOf(op) });
       }
       ctx = nextContext(ctx, op.type, op) as Context;
     } else {
