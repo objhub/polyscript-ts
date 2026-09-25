@@ -1384,6 +1384,7 @@ export class Parser {
       // Parse first element — use parsePipeExpr so source commands
       // like `rect 50 10` and pipes work inside list literals.
       const first = this.parsePipeExpr();
+      this.skipNewlines();
       if (this.matchKeyword('for')) {
         return this.parseListCompRest(first, startToken);
       }
@@ -1405,12 +1406,19 @@ export class Parser {
   }
 
   private parseListCompRest(expr: Expression, startToken: Token): Expression {
+    // Inside the brackets a line break may sit around `for` and `in` and
+    // before the closing `]`, as in a regular list: the closing bracket on a
+    // line of its own is the natural way to write a multi-line comprehension.
     this.expect(TokenType.Keyword, 'for');
+    this.skipNewlines();
     if (this.match(TokenType.Dollar)) this.advance(); // optional $
     const variable = this.expect(TokenType.Identifier).value;
+    this.skipNewlines();
     this.expect(TokenType.Keyword, 'in');
+    this.skipNewlines();
     // Iterable: any expression that yields a list (`range(...)` is an ordinary call).
     const iterable = this.parseExpr();
+    this.skipNewlines();
     this.expect(TokenType.RBracket);
     return { type: 'ListComp', expr, variable, iterable, loc: this.loc(startToken) };
   }

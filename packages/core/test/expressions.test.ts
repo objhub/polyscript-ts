@@ -128,6 +128,11 @@ describe('expressions', () => {
       }
     });
 
+    it('parses a multi-line comprehension of shapes with the ] on its own line', () => {
+      const stmt = parseFirst('$ribs = union [\n  box 2 10 4 | translate ($i * 15) 0 0\n  for $i in range(7)\n]');
+      expect(stmt.type).toBe('Assignment');
+    });
+
     it('parses tuple', () => {
       const stmt = parseFirst('$x = (1, 2)');
       if (stmt.type === 'Assignment') {
@@ -1005,6 +1010,19 @@ box 10 10 10`);
       expect(evalExpr('$x = range(1, 4)')).toEqual([1, 2, 3]);
       expect(evalExpr('$x = range(0, 10, 3)')).toEqual([0, 3, 6, 9]);
       expect(evalExpr('$x = range(5, 0, -2)')).toEqual([5, 3, 1]);
+    });
+
+    it('a list comprehension may break lines anywhere inside its brackets', () => {
+      const want = [0, 15, 30, 45, 60, 75, 90];
+      for (const src of [
+        '$x = [$i * 15 for $i in range(7)\n]',
+        '$x = [\n  $i * 15 for $i in range(7)]',
+        '$x = [$i * 15\n  for $i in range(7)]',
+        '$x = [\n  $i * 15\n  for $i\n  in\n  range(7)\n]',
+      ]) {
+        expect(evalExpr(src), JSON.stringify(src)).toEqual(want);
+      }
+      expect(evalExpr('$x = [1,\n  2,\n  3\n]')).toEqual([1, 2, 3]);
     });
 
     it('range rejects a zero step and a wrong argument count', () => {
