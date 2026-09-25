@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  occt-wasm: file:/tmp/occt-wasm-5.3.0-ps3.tgz
-
 importers:
 
   .:
@@ -37,8 +34,8 @@ importers:
         specifier: ^13.0.0
         version: 13.1.0
       occt-wasm:
-        specifier: file:/tmp/occt-wasm-5.3.0-ps3.tgz
-        version: file:../../../../../../tmp/occt-wasm-5.3.0-ps3.tgz
+        specifier: https://github.com/polygoro/occt-wasm/releases/download/v5.3.5-ps1/occt-wasm-5.3.5-ps1.tgz
+        version: https://github.com/polygoro/occt-wasm/releases/download/v5.3.5-ps1/occt-wasm-5.3.5-ps1.tgz
     devDependencies:
       '@types/node':
         specifier: ^25.5.0
@@ -56,8 +53,8 @@ importers:
   packages/core:
     dependencies:
       occt-wasm:
-        specifier: file:/tmp/occt-wasm-5.3.0-ps3.tgz
-        version: file:../../../../../../tmp/occt-wasm-5.3.0-ps3.tgz
+        specifier: https://github.com/polygoro/occt-wasm/releases/download/v5.3.5-ps1/occt-wasm-5.3.5-ps1.tgz
+        version: https://github.com/polygoro/occt-wasm/releases/download/v5.3.5-ps1/occt-wasm-5.3.5-ps1.tgz
       opentype.js:
         specifier: ^1.3.4
         version: 1.3.4
@@ -911,9 +908,9 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  occt-wasm@file:../../../../../../tmp/occt-wasm-5.3.0-ps3.tgz:
-    resolution: {integrity: sha512-C/Ub21wpwyhba2NDZvFCdXt8rtoG2P5yb/wXxG+RzOaoLwybox2Ib6WUbhJ1u3Z3wZkrqlPT85dnT0K7RcC+oQ==, tarball: file:../../../../../../tmp/occt-wasm-5.3.0-ps3.tgz}
-    version: 5.3.0-ps3
+  occt-wasm@https://github.com/polygoro/occt-wasm/releases/download/v5.3.5-ps1/occt-wasm-5.3.5-ps1.tgz:
+    resolution: {integrity: sha512-/4CXzg3mdjalV9GMr3qpPvEAT8V/oIKydk7tE221eVFTxaVrJFiCvwEdBs8v4XT4ZCqXIe2Y9O1j5Uo4WOW7zA==, tarball: https://github.com/polygoro/occt-wasm/releases/download/v5.3.5-ps1/occt-wasm-5.3.5-ps1.tgz}
+    version: 5.3.5-ps1
 
   opentype.js@1.3.4:
     resolution: {integrity: sha512-d2JE9RP/6uagpQAVtJoF0pJJA/fgai89Cc50Yp0EJHk+eLp6QQ7gBoblsnubRULNY132I0J1QKMJ+JTbMqz4sw==}
@@ -1812,7 +1809,7 @@ snapshots:
 
   nanoid@3.3.11: {}
 
-  occt-wasm@file:../../../../../../tmp/occt-wasm-5.3.0-ps3.tgz:
+  occt-wasm@https://github.com/polygoro/occt-wasm/releases/download/v5.3.5-ps1/occt-wasm-5.3.5-ps1.tgz:
     dependencies:
       comlink: 4.4.2
 

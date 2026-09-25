@@ -18,10 +18,5 @@
   },
   "workspaces": [
     "packages/*"
-  ],
-  "pnpm": {
-    "overrides": {
-      "occt-wasm": "file:/tmp/occt-wasm-5.3.0-ps3.tgz"
-    }
-  }
+  ]
 }
