@@ -152,9 +152,15 @@ describe('validator messages name the keyword and the allowed contexts', () => {
   });
 
   it('a 3D op on an outline suggests extruding first', () => {
+    const e = first('rect 10 10 | floor');
+    expect(e.message).toMatch(/^'floor' is not valid in Face context \(allowed in: .*3D/);
+    expect(e.hint).toMatch(/extrude the outline first/);
+  });
+
+  it('translate on an outline says it cannot leave its workplane, not "extrude first"', () => {
     const e = first('rect 10 10 | translate 1 0 0');
     expect(e.message).toMatch(/^'translate' is not valid in Face context \(allowed in: .*3D/);
-    expect(e.hint).toMatch(/extrude the outline first/);
+    expect(e.hint).toMatch(/stays on its workplane.*at:\(5, 5\)/);
   });
 
   it('an area op on a wire says a wire has no area', () => {

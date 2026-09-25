@@ -165,3 +165,12 @@ describe('the validator checks the rotate angle count where the context is known
     expect(errs('$p = rect 10 10\n$p | rotate 90 0 0')).toEqual([]);
   });
 });
+
+describe('translate on a 2D shape', () => {
+  it('is one context.invalid-op with a 2D hint, not a cascade', () => {
+    const errs = validate(parse('arc (0, -25) (25, 0) center:(0, 0) | translate 0 0 10 | sweep (circle 5)'));
+    expect(errs.map(e => e.code)).toEqual(['context.invalid-op']);
+    expect(errs[0].hint).toMatch(/stays on its workplane/);
+    expect(errs[0].hint).not.toMatch(/extrude/);
+  });
+});

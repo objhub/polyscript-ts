@@ -60,7 +60,7 @@ const REQUIRED_ARG: Partial<Record<PipeOp['type'], string>> = {
 
 // --- Allowed operations per context ---
 
-const CONTEXT_OPS: Record<Context, Set<string>> = {
+export const CONTEXT_OPS: Readonly<Record<Context, ReadonlySet<string>>> = {
   Workplane: new Set([
     'RectExpr', 'CircleExpr', 'EllipseExpr', 'PolylineExpr', 'PolygonExpr', 'TextExpr',
     'Implicit2DPrimitive', 'Place',
@@ -304,7 +304,12 @@ function invalidOpMessage(op: PipeOp, ctx: Context): { message: string; hint?: s
   const name = opKeyword(op);
   const allowedIn = (Object.keys(CONTEXT_OPS) as Context[]).filter(c => CONTEXT_OPS[c].has(op.type));
   let hint: string | undefined;
-  if (ctx === '3D' && (allowedIn.includes('Face') || allowedIn.includes('Workplane'))) {
+  if ((ctx === 'Face' || ctx === 'Wire') && (op.type === 'Translate' || op.type === 'Scale')) {
+    // Not "extrude first": the usual intent is to place or stand up a 2D
+    // shape, which it cannot do off its workplane.
+    hint = `a 2D shape stays on its workplane: place it when drawing ('rect 10 10 at:(5, 5)'), `
+      + `or draw it on the plane you want ('workplane XZ | wire [...]')`;
+  } else if (ctx === '3D' && (allowedIn.includes('Face') || allowedIn.includes('Workplane'))) {
     hint = `select a face to draw on first ('| faces >Z | ${name} ...')`;
   } else if (ctx === 'Wire' && allowedIn.includes('Face')) {
     hint = `a wire has no area; draw a closed outline with 'sketch [...]', or give the wire a width with 'offset d'`;
@@ -359,6 +364,10 @@ function validatePipeline(pipeline: Pipeline, errors: ValidationError[]): void {
       if (allowed && !allowed.has(op.type)) {
         const { message, hint } = invalidOpMessage(op, ctx);
         errors.push({ code: 'context.invalid-op', message, nodeType: op.type, hint, ...locOf(op) });
+        // A refused translate / scale moved nothing: judge the rest against
+        // the 2D shape still held, not an invented solid (one error, not a
+        // cascade into `'sweep' is not valid in 3D context`).
+        if ((ctx === 'Face' || ctx === 'Wire') && (op.type === 'Translate' || op.type === 'Scale')) continue;
       } else if (op.type === 'Rotate') {
         const e = rotateArityError(op.args.length, ctx);
         if (e) errors.push({ code: 'arg.count', nodeType: op.type, ...e, ...locOf(op) });
