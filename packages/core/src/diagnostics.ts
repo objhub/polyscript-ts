@@ -23,7 +23,8 @@ export type Severity = 'error' | 'warning' | 'info';
  *
  * Namespaced by phase so the prefix alone says where the run died:
  * `syntax.` parse, `context.`/`arg.`/`def.`/`call.` validation, `selector.`/`eval.` runtime,
- * `check.` post-build observations (informational -- never fail a build),
+ * `check.` post-build observations (informational -- never fail a build --
+ * except `check.sweep-distorted`, a kernel warning that fails under --strict),
  * `param.`/`io.` the CLI's own surface.
  */
 export const DIAGNOSTIC_CODES = [
@@ -38,6 +39,7 @@ export const DIAGNOSTIC_CODES = [
   'check.multiple-solids',
   'check.no-effect',
   'check.brep-invalid',
+  'check.sweep-distorted',
   'param.unknown',
   'io.read',
 ] as const;
@@ -258,6 +260,18 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
     fix: 'Find the step that broke it with `poly verify --trace`: a jump in the\n'
       + 'face count or a solid count above 1 usually marks it. Avoid booleans\n'
       + 'whose tool exactly touches the material surface.',
+  },
+  'check.sweep-distorted': {
+    title: 'A sweep came out far from profile area x path length',
+    why: 'A swept solid has about the volume of its profile area times the\n'
+      + 'path length. Far less means the profile folded or flipped along the\n'
+      + 'way; the result is still one valid solid, with exit 0. A path in a\n'
+      + 'vertical plane used to do this: a half-circle handle came out at 42%\n'
+      + 'of its volume, or at 0 where the tangent ran along Z.',
+    fix: 'Keep the profile smaller than the tightest bend radius of the path.\n'
+      + 'Look at the result with `poly section` across the path. If the path is\n'
+      + 'smooth and the profile small, the sweep itself is at fault: report it\n'
+      + 'with the file.',
   },
   'param.unknown': {
     title: '-D named a parameter the file does not declare',

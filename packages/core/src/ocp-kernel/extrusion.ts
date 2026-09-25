@@ -11,6 +11,7 @@ import { makeFaceFromWire, makeCircleWire } from './builders.js';
 import { fastBoundingBox, getOffsets } from './workplane.js';
 import { pruneDebrisSolids, describeOperand } from './boolean.js';
 import { requireFaces, stateWire, faceBoundary } from './faces.js';
+import { pushWarning } from '../diagnostics.js';
 
 /**
  * The faces an area-consuming op works on, failing when there are none.
@@ -120,22 +121,39 @@ export function wpSweep(s: WpState, profileWire: Wire, profilePlane: Pln): WpSta
   // correctly; without this step a profile drawn in XY is swept as a 2D
   // ribbon along XY-planar paths. The source frame is the profile's own
   // workplane (it was authored there), not the path's workplane.
-  const orientedWire = orientProfileToSpineStart(oc, profileWire, pathWire, profilePlane);
-
-  let solid: Shape;
-  try {
-    // ConstantBinormal=+Z: profile stays vertically oriented along the spine
-    // (no twist on helices, springs, threaded-bolt grooves). Mirrors the
-    // Python oracle: SetMode(gp_Dir(0,0,1)) + SetTransitionMode(RoundCorner).
-    solid = oc.sweepAdvanced(orientedWire, pathWire, {
-      mode: SweepMode.FixedUp,
-      up: { x: 0, y: 0, z: 1 },
-      transitionMode: TransitionMode.RoundCorner,
-    });
-  } catch {
+  // A fixed binormal keeps the profile from twisting: +Z on helices,
+  // springs and threaded-bolt grooves (the Python oracle's
+  // SetMode(gp_Dir(0,0,1)) + SetTransitionMode(RoundCorner)), the path's own
+  // plane normal on a planar path. See sweepFrame.
+  //
+  // RoundCorner at a sharp corner fails for some profile placements (a
+  // circle whose seam sits on the inside of the corner), so a failure is
+  // retried with the binormal reversed -- the profile turned 180 degrees about
+  // the tangent, the same solid for a symmetric profile -- and then with
+  // corrected Frenet, before the plain pipe, which drops everything after a
+  // corner it cannot turn.
+  const frame = sweepFrame(oc, pathWire);
+  const ups: (Dir | undefined)[] = frame.up
+    ? [frame.up, { x: -frame.up.x, y: -frame.up.y, z: -frame.up.z }, undefined]
+    : [undefined];
+  let solid: Shape | null = null;
+  let orientedWire = profileWire;
+  for (const up of ups) {
+    orientedWire = orientProfileToSpineStart(oc, profileWire, pathWire, profilePlane, up);
+    try {
+      solid = oc.sweepAdvanced(orientedWire, pathWire, up
+        ? { mode: SweepMode.FixedUp, up, transitionMode: TransitionMode.RoundCorner }
+        : { mode: SweepMode.Fixed, transitionMode: TransitionMode.RoundCorner });
+      break;
+    } catch {
+      // next orientation
+    }
+  }
+  if (!solid) {
     const face = makeFaceFromWire(oc, orientedWire);
     solid = oc.pipe(face, pathWire);
   }
+  warnIfSweepDistorted(oc, solid, orientedWire, pathWire);
   let newShape = solid;
   if (s.shape) {
     newShape = ensureSolid(oc, oc.fuse(s.shape, solid));
@@ -143,16 +161,137 @@ export function wpSweep(s: WpState, profileWire: Wire, profilePlane: Pln): WpSta
   return cloneState(s, { shape: newShape, faces: [], wires: [] });
 }
 
+/** Swept volume over profile area x path length, outside of which the sweep
+ *  is reported. Generous: a rounded corner moves the ratio by a few percent;
+ *  a profile that collapsed or flipped mid-sweep leaves it near 0.4 or below. */
+const SWEEP_RATIO_MIN = 0.6;
+const SWEEP_RATIO_MAX = 1.4;
+
+/**
+ * `check.sweep-distorted`: compare the swept volume with area x length.
+ *
+ * Every squashed sweep in issue 2026-09-25 came out as one valid solid with
+ * exit 0, so the numbers are the only witness. Open profiles (a ribbon),
+ * off-centre profiles and a mock OC without the queries are skipped.
+ */
+function warnIfSweepDistorted(oc: OC, solid: Shape, profile: Wire, spine: Wire): void {
+  let volume: number;
+  let expected: number;
+  try {
+    if (typeof oc.getSurfaceArea !== 'function' || typeof oc.getLength !== 'function') return;
+    const face = makeFaceFromWire(oc, profile);
+    const area = oc.getSurfaceArea(face);
+    // Pappus: area x length holds only for a profile centred on the path. An
+    // off-centre profile legitimately sweeps more or less (`rect at:(20, 0)`
+    // around a tight arc), so only a centred one is judged.
+    const centroid = oc.getSurfaceCenterOfMass(face);
+    const start = oc.wireFirstPointTangent(spine).point;
+    if (dist(centroid, start) > 0.1 * Math.sqrt(area)) return;
+    volume = Math.abs(oc.getVolume(solid));
+    expected = area * oc.getLength(spine);
+  } catch {
+    return;
+  }
+  if (!(expected > 0)) return;
+  const ratio = volume / expected;
+  if (ratio >= SWEEP_RATIO_MIN && ratio <= SWEEP_RATIO_MAX) return;
+  pushWarning(
+    `sweep: the solid's volume is ${(ratio * 100).toFixed(0)}% of profile area x path length `
+      + `(${volume.toFixed(2)} vs ${expected.toFixed(2)}) -- the profile was distorted along the path`,
+    {
+      code: 'check.sweep-distorted',
+      hint: 'a profile wider than the path\'s bend radius folds over itself -- shrink it, '
+        + 'or check the result with poly section',
+    },
+  );
+}
+
+/**
+ * How the profile is oriented along the spine: a constant binormal `up`, or
+ * none for corrected Frenet.
+ *
+ * FixedUp builds the section frame as N = up x T, so it degenerates wherever
+ * the tangent runs along `up` and flips as the tangent crosses it. A fixed +Z
+ * suits helices and XY paths, but a half circle in the XZ plane passes
+ * through tangent +-Z: the profile flipped mid-sweep and the solid came out
+ * at 42% of its volume, or 0 (issue 2026-09-25).
+ *  - a planar path: the plane normal, which is perpendicular to every
+ *    tangent. On an XY path that is +Z, as before;
+ *  - a straight path: any perpendicular -- +Z unless the line runs along Z;
+ *  - a non-planar path whose tangent stays clear of Z (helices): +Z;
+ *  - any other non-planar path: corrected Frenet.
+ */
+function sweepFrame(oc: OC, spine: Wire): { up?: Dir } {
+  const Z: Dir = { x: 0, y: 0, z: 1 };
+  // Mock OC in tests may lack the curve queries -- keep the old +Z.
+  if (typeof (oc as { curvePointAtParam?: unknown }).curvePointAtParam !== 'function') return { up: Z };
+  const points: Dir[] = [];
+  const tangents: Dir[] = [];
+  try {
+    for (const edge of oc.getSubShapes(spine, 'edge')) {
+      const { first, last } = oc.curveParameters(edge);
+      const n = 16;
+      for (let i = 0; i <= n; i++) {
+        const t = first + (last - first) * i / n;
+        points.push(oc.curvePointAtParam(edge, t));
+        tangents.push(unit(oc.curveTangent(edge, t)) ?? Z);
+      }
+    }
+  } catch {
+    return { up: Z };
+  }
+  if (points.length < 2) return { up: Z };
+
+  // Plane through the point farthest from the start and the point farthest
+  // from that chord; the sampled points are all on it or the path is not planar.
+  const p0 = points[0];
+  const p1 = points.reduce((a, b) => dist(b, p0) > dist(a, p0) ? b : a);
+  const size = dist(p1, p0);
+  if (size < 1e-9) return { up: Z };
+  const chord = scale(sub(p1, p0), 1 / size);
+  let normal: Dir | null = null;
+  let best = 0;
+  for (const p of points) {
+    const c = cross(chord, sub(p, p0));
+    const len = Math.hypot(c.x, c.y, c.z);
+    if (len > best) { best = len; normal = c; }
+  }
+  const tol = 1e-6 * size + 1e-7;
+  if (!normal || best < tol) {
+    // Straight: pick the perpendicular orientProfileToSpineStart would.
+    return { up: Math.abs(chord.z) > 0.9 ? (Math.abs(chord.x) > 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 }) : Z };
+  }
+  const n = unit(normal)!;
+  if (points.every(p => Math.abs(dot(sub(p, p0), n)) < tol)) {
+    // Sign: +Z on an XY path as before, then +Y, then +X.
+    const sign = Math.abs(n.z) > 1e-9 ? Math.sign(n.z) : Math.abs(n.y) > 1e-9 ? Math.sign(n.y) : Math.sign(n.x);
+    return { up: scale(n, sign) };
+  }
+  return tangents.every(t => Math.abs(t.z) < 0.9) ? { up: Z } : {};
+}
+
+function sub(a: Dir, b: Dir): Dir { return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }; }
+function scale(a: Dir, k: number): Dir { return { x: a.x * k, y: a.y * k, z: a.z * k }; }
+function dot(a: Dir, b: Dir): number { return a.x * b.x + a.y * b.y + a.z * b.z; }
+function dist(a: Dir, b: Dir): number { return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z); }
+function cross(a: Dir, b: Dir): Dir {
+  return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x };
+}
+function unit(a: Dir): Dir | null {
+  const len = Math.hypot(a.x, a.y, a.z);
+  return len < 1e-12 ? null : scale(a, 1 / len);
+}
+
 /**
  * Place a sweep profile at the start of its spine. Mirrors Python OCP's
  * approach: take the **analytical** start point + tangent of the spine via
  * BRepAdaptor_CompCurve.D1 (facade `wireFirstPointTangent`), build a target
- * Ax3 frame with a fixed +Z binormal (fallback +X/+Y if the tangent is along
- * Z), and transform the profile from its source workplane Ax3 to that
+ * Ax3 frame with the sweep's binormal `up` (without one -- corrected Frenet --
+ * +Z, falling back to +X/+Y if the tangent is along Z), and transform the profile from its source workplane Ax3 to that
  * target Ax3 with `gp_Trsf.SetTransformation` (facade `transformShapeAx3`).
  */
 function orientProfileToSpineStart(
-  oc: WpState['oc'], profile: Wire, spine: Wire, plane: Pln,
+  oc: WpState['oc'], profile: Wire, spine: Wire, plane: Pln, up?: Dir,
 ): Wire {
   // Mock OC in tests may lack the facade helpers — skip silently.
   if (typeof (oc as { wireFirstPointTangent?: unknown }).wireFirstPointTangent !== 'function'
@@ -168,9 +307,10 @@ function orientProfileToSpineStart(
   const start = pt.point;
   const tangent = pt.tangent;
 
-  // Pick a binormal: fixed +Z unless tangent is nearly parallel.
-  let binormal: Dir = { x: 0, y: 0, z: 1 };
-  if (Math.abs(tangent.z) > 0.9) {
+  // The sweep's binormal, so the start section matches the swept ones;
+  // otherwise +Z unless the tangent is nearly parallel.
+  let binormal: Dir = up ?? { x: 0, y: 0, z: 1 };
+  if (!up && Math.abs(tangent.z) > 0.9) {
     binormal = Math.abs(tangent.x) > 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
   }
   // Target X = normalize(tangent × binormal); OCC's Ax3 builds Y = Z × X.
