@@ -102,8 +102,12 @@ export function nextContext(ctx: PipelineContext, opType: string, op?: PipeOp): 
     case 'PointsSelect': return 'PointSelection';
     case 'Workplane': return 'Workplane';
     case 'Extrude': case 'Revolve': case 'Sweep': case 'Loft': case 'Cut': case 'Hole':
-    case 'Shell': case 'Rotate': case 'Scale': case 'Mirror':
+    case 'Shell': case 'Scale':
       return '3D';
+    case 'Rotate': case 'Mirror':
+      // In-plane rotation and mirror keep a 2D shape on its workplane (SPEC:
+      // `rotate a`, `mirror "X"` on a Face / Wire -> Face / Wire).
+      return is2D(ctx) ? ctx : '3D';
     case 'Diff': case 'Union': case 'Inter':
       // 2D bool stays on faces, 3D bool stays in 3D.
       return is2D(ctx) ? 'Face' : '3D';

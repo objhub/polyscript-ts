@@ -120,9 +120,17 @@ export function evalRotateOp(
 
   if (has2D) {
     if (args.length !== 1) {
+      // Three angles on a 2D shape is almost always an attempt to stand a
+      // curve up (a handle path drawn in XY). Point at the ways that work.
       throw new EvalError(
         `rotate: on a 2D shape, 1 argument (angle about the plane normal); got ${args.length}`,
         op.loc,
+        args.length === 3
+          ? {
+            hint: 'a 2D shape stays on its workplane: draw it on the plane you want '
+              + "('workplane XZ | wire [arc ...] | sweep ...'), or give a path 3D points ('arc (0,0,-25) (25,0,0) center:(0,0,0)')",
+          }
+          : {},
       );
     }
     return wpRotate2D(state, resolve2DOrigin(state, evalExprFn, op), args[0]);

@@ -102,3 +102,41 @@ describe('rotate on a bare workplane: rejected', () => {
     expect(errors.map(e => e.message).join('\n')).toMatch(/rotate|Rotate/i);
   });
 });
+
+describe('a rotated or mirrored 2D shape stays 2D for the next op (issue 2026-09-25)', () => {
+  // The evaluator kept the Face / Wire, but the validator's context moved to
+  // 3D after any rotate / mirror, so `rect | rotate 45 | extrude 5` was
+  // refused at `poly check` although SPEC allows it.
+  it.each([
+    'rect 10 10 | rotate 45 | extrude 5',
+    'rect 20 10 at:(20, 0) | mirror "X" | extrude 5',
+    'arc (0, -25) (25, 0) center:(0, 0) | rotate 90 | sweep (circle 5)',
+    'circle 20 | rotate 30 | sweep (circle 3)',
+  ])('%s passes the validator', (src) => {
+    expect(validate(parse(src))).toEqual([]);
+  });
+
+  it('rect | rotate 45 | extrude 5 is the turned prism', () => {
+    const s = run('rect 10 10 | rotate 45 | extrude 5');
+    expect(oc.getVolume(s.shape!)).toBeCloseTo(500, 6);
+    const bb = boundingBox(oc, s.shape!);
+    close(bb.xlen, 10 * Math.SQRT2);
+    close(bb.zlen, 5);
+  });
+
+  it('a turned quarter arc sweeps to pi r^2 L', () => {
+    const s = run('arc (0, -25) (25, 0) center:(0, 0) | rotate 90 | sweep (circle 5)');
+    const expected = Math.PI * 25 * (Math.PI * 25 / 2);
+    expect(Math.abs(oc.getVolume(s.shape!) - expected) / expected).toBeLessThan(1e-3);
+  });
+
+  it('three angles on a 2D shape point at the ways to stand a path up', () => {
+    expect(() => run('arc (0, -25) (25, 0) center:(0, 0) | rotate 90 0 0 | sweep (circle 5)'))
+      .toThrow(expect.objectContaining({ hint: expect.stringMatching(/workplane XZ \| wire \[arc/) }));
+  });
+
+  it('a solid still leaves rotate / mirror in 3D', () => {
+    expect(validate(parse('box 10 10 10 | rotate 0 0 45 | faces ">Z" | shell 1'))).toEqual([]);
+    expect(validate(parse('box 10 10 10 | mirror "X" | extrude 5')).map(e => e.code)).toEqual(['context.invalid-op']);
+  });
+});
