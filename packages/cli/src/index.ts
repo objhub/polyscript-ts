@@ -91,6 +91,9 @@ const FORMAT_EXTENSIONS: Record<string, string[]> = {
   // A line drawing, not a solid: OCCT hidden-line removal per view. Listed
   // here so `-o x.svg` renders one instead of falling back to STL.
   svg: ['.svg'],
+  // The same drawing rasterised, for readers that take no SVG. Shares every
+  // --view / --view-size / --no-hidden option with it.
+  png: ['.png'],
 };
 
 function formatFromExtension(file: string): string {
@@ -367,7 +370,7 @@ program
   .command('build <file>', { isDefault: true })
   .description('Build a .poly file to STL/STEP/glTF/SVG')
   .option('-o <output>', 'Output file path')
-  .option('--format <fmt>', 'Output format (stl|step|glb|svg)')
+  .option('--format <fmt>', 'Output format (stl|step|glb|svg|png)')
   .option(
     '-D, --define <value>',
     'Override parameter (repeatable: -D width=100 -D height=50)',
@@ -383,16 +386,21 @@ program
   .option('--ascii-stl', 'Write ASCII STL instead of binary (about 6x larger; diff-friendly)')
   .option(
     '--view <names>',
-    'SVG viewpoints, comma-separated (front|back|top|bottom|left|right|iso). '
+    'SVG/PNG viewpoints, comma-separated (front|back|top|bottom|left|right|iso). '
     + 'One name draws a single panel; the default is front,top,right,iso',
   )
-  .option('--view-size <px>', 'SVG panel size in px (default 240)', parseFloat)
-  .option('--no-hidden', 'SVG: omit occluded edges instead of dashing them')
+  .option('--view-size <px>', 'SVG/PNG panel size in px (default 240)', parseFloat)
+  .option('--no-hidden', 'SVG/PNG: omit occluded edges instead of dashing them')
+  .option(
+    '--png-scale <n>',
+    'PNG supersampling, 1-4 (default 2). Sharpens lines; does not change the image size',
+    parseFloat,
+  )
   .option('-v, --verbose', 'Print B-Rep facts about the result')
   .action(async (file: string, opts: {
     o?: string; format?: string; define?: string[]; paramsFile?: string;
     trace?: boolean; timing?: boolean; strict?: boolean; json?: boolean; meshDeflection?: number; verbose?: boolean;
-    asciiStl?: boolean; view?: string; viewSize?: number; hidden?: boolean;
+    asciiStl?: boolean; view?: string; viewSize?: number; hidden?: boolean; pngScale?: number;
   }) => {
     const name = basename(file);
     const m = await loadModel(file, opts);
@@ -448,6 +456,7 @@ program
             width: opts.viewSize,
             height: opts.viewSize,
             showHidden: opts.hidden,
+            scale: opts.pngScale,
           },
         });
       } catch (e) {

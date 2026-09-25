@@ -75,11 +75,13 @@ export {
   exportBREPString, importBREP,
   exportGLTFBuffer, exportGLTF,
   exportSVG, exportSVGString, SVG_VIEWS,
+  exportPNG, exportPNGBuffer,
   tessellate,
   edgeSegments,
 } from './export.js';
 export type {
-  TessellationMesh, ExportOptions, ExportShapeOptions, SvgExportOptions, TessellateOptions,
+  TessellationMesh, ExportOptions, ExportShapeOptions, SvgExportOptions, PngExportOptions,
+  TessellateOptions,
 } from './export.js';
 
 // Cross sections (measurements, not pictures)

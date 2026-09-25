@@ -9,7 +9,7 @@
  * they only pull in Node APIs when actually called.
  */
 
-import { renderMultiviewSVG, renderShapeSVG } from 'occt-wasm';
+import { renderMultiviewPNG, renderMultiviewSVG, renderShapePNG, renderShapeSVG } from 'occt-wasm';
 import type { ViewName } from 'occt-wasm';
 import type { OC, Shape } from './types.js';
 import type { ColorPart } from './color-parts.js';
@@ -56,60 +56,21 @@ export function exportSTLString(
 }
 
 /**
- * Return the STL content as binary STL (80-byte header, uint32 facet count,
- * 50 bytes per facet): about 1/6 the size of ASCII for the same mesh, and
- * what slicers expect.
+ * Return the STL content as binary STL: about 1/6 the size of ASCII for the
+ * same mesh, and what slicers expect.
  *
- * Built from our own tessellation rather than `oc.exportStl(.., false)`: that
- * one returns the bytes through an Embind std::string, which JS decodes as
- * UTF-8 and so every byte >= 0x80 comes back as U+FFFD. Same mesher and
- * deflections as StlAPI_Writer, so the triangles match the ASCII export.
+ * Hand-built until occt-wasm 5.3.0: before that the binary path returned the
+ * bytes through an Embind std::string, so JS decoded them as UTF-8 and every
+ * byte >= 0x80 came back as U+FFFD (upstream andymai/occt-wasm#308). The
+ * kernel now returns real bytes, and its output matches what we used to
+ * assemble -- same facet count, same length, same volume when read back.
  */
 export function exportSTLBuffer(
   oc: OC,
   shape: Shape,
   linearDeflection: number = 0.1,
 ): Uint8Array {
-  const { positions, indices } = tessellate(oc, shape, { linearDeflection, edges: false });
-  const facets = Math.floor(indices.length / 3);
-  const bytes = new Uint8Array(84 + 50 * facets);
-  const view = new DataView(bytes.buffer);
-  // The header must not start with "solid", which readers take to mean ASCII.
-  bytes.set(new TextEncoder().encode('PolyScript binary STL').subarray(0, 80));
-  view.setUint32(80, facets, true);
-
-  let off = 84;
-  for (let t = 0; t < facets; t++) {
-    const a = indices[t * 3] * 3;
-    const b = indices[t * 3 + 1] * 3;
-    const c = indices[t * 3 + 2] * 3;
-    // Facet normal from the winding; the per-vertex normals from the mesher
-    // are smoothed and not what STL wants.
-    const ux = positions[b] - positions[a];
-    const uy = positions[b + 1] - positions[a + 1];
-    const uz = positions[b + 2] - positions[a + 2];
-    const vx = positions[c] - positions[a];
-    const vy = positions[c + 1] - positions[a + 1];
-    const vz = positions[c + 2] - positions[a + 2];
-    let nx = uy * vz - uz * vy;
-    let ny = uz * vx - ux * vz;
-    let nz = ux * vy - uy * vx;
-    const len = Math.hypot(nx, ny, nz);
-    if (len > 0) { nx /= len; ny /= len; nz /= len; } else { nx = ny = nz = 0; }
-    view.setFloat32(off, nx, true);
-    view.setFloat32(off + 4, ny, true);
-    view.setFloat32(off + 8, nz, true);
-    off += 12;
-    for (const i of [a, b, c]) {
-      view.setFloat32(off, positions[i], true);
-      view.setFloat32(off + 4, positions[i + 1], true);
-      view.setFloat32(off + 8, positions[i + 2], true);
-      off += 12;
-    }
-    view.setUint16(off, 0, true); // attribute byte count
-    off += 2;
-  }
-  return bytes;
+  return oc.exportStl(shape, linearDeflection, false);
 }
 
 /** Return the STEP content as a string. */
@@ -220,6 +181,43 @@ export async function exportSVG(
   writeFileSync(filePath, data, 'utf-8');
 }
 
+export interface PngExportOptions extends SvgExportOptions {
+  /** Supersampling factor, 1-4 (default 2). The drawing is rasterised this
+   *  much larger and filtered down, which is what keeps a 1 px line legible.
+   *  It does not change the image's dimensions. */
+  scale?: number;
+}
+
+/** Render a Shape as a PNG line drawing: the same picture {@link exportSVGString}
+ *  draws, rasterised. For consumers that cannot read SVG — image viewers,
+ *  READMEs, and vision models that take raster input only.
+ *
+ *  Async because the PNG encoder compresses through the platform's
+ *  CompressionStream. */
+export function exportPNGBuffer(
+  oc: OC,
+  shape: Shape,
+  options: PngExportOptions = {},
+): Promise<Uint8Array> {
+  const { views, ...rest } = options;
+  if (views && views.length === 1) {
+    return renderShapePNG(oc, shape, views[0], rest);
+  }
+  return renderMultiviewPNG(oc, shape, views ? { ...rest, views } : rest);
+}
+
+export async function exportPNG(
+  oc: OC,
+  shape: Shape,
+  filePath: string,
+  options: PngExportOptions = {},
+): Promise<void> {
+  const data = await exportPNGBuffer(oc, shape, options);
+  const { writeFileSync } = await import('node:fs');
+  await ensureParentDir(filePath);
+  writeFileSync(filePath, data);
+}
+
 export interface ExportShapeOptions {
   linearDeflection?: number;
   /** Write ASCII STL instead of binary. */
@@ -231,8 +229,9 @@ export interface ExportShapeOptions {
   /** Per-part colours from colorParts(). glTF only; wins over `color`.
    *  STL and STEP carry no colour, so passing these is harmless there. */
   parts?: ColorPart[];
-  /** Viewpoints and panel options for SVG. Ignored by every other format. */
-  svg?: SvgExportOptions;
+  /** Viewpoints and panel options for SVG and PNG. Ignored by every other
+   *  format. */
+  svg?: PngExportOptions;
 }
 
 export async function exportShape(
@@ -255,6 +254,8 @@ export async function exportShape(
     });
   } else if (ext.endsWith('.svg')) {
     await exportSVG(oc, shape, filePath, options.svg ?? {});
+  } else if (ext.endsWith('.png')) {
+    await exportPNG(oc, shape, filePath, options.svg ?? {});
   } else if (ext.endsWith('.gltf')) {
     // OCCT's XCAF writer emits the binary container only. Writing those bytes
     // to a .gltf file would mislabel them, so say so instead of guessing.

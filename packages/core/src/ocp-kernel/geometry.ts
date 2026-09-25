@@ -140,12 +140,16 @@ export function ensureSolid(oc: OC, shape: Shape): Shape {
 // ---------------------------------------------------------------------------
 
 export function faceCenter(oc: OC, face: Face): Pnt {
-  // Plain (control-point hull) bbox, not the analytically-sampled optimal
-  // one: selector evaluation calls this once per face, and AddOptimal was
-  // 15x slower on curved faces (03_enclosure spent 53% of its build here).
+  // Loose (control-point hull) bbox, not the analytically-sampled precise
+  // one: selector evaluation calls this once per face, and the precise search
+  // was 15x slower on curved faces (03_enclosure spent 53% of its build here).
   // This also matches the Python kernel, whose _face_center has always used
   // plain BRepBndLib.Add_s.
-  const bb = oc.getBoundingBoxFast(face);
+  //
+  // useTriangulation stays false so the centre does not move once a preview
+  // has meshed the shape: selector arguments feed the kernel memo keys, and a
+  // centre that shifts after rendering invalidates every downstream call.
+  const bb = oc.getBoundingBox(face, { precise: false, useTriangulation: false });
   return {
     x: (bb.xmin + bb.xmax) / 2,
     y: (bb.ymin + bb.ymax) / 2,

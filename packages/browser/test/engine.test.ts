@@ -12,7 +12,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 function createMockOC() {
   return {
-    exportStl: vi.fn((_shape: unknown, _ld: number, _ascii: boolean) => 'solid mock\nendsolid mock'),
+    // Since occt-wasm 5.3.0 the kernel writes binary STL itself and returns
+    // bytes; `ascii: true` still returns the text form. The mock answers in
+    // kind so the export paths are exercised, not re-implemented here.
+    exportStl: vi.fn((_shape: unknown, _ld: number, ascii?: boolean) =>
+      ascii ? 'solid mock\nendsolid mock' : new Uint8Array(84 + 50),
+    ),
     exportStep: vi.fn((_shape: unknown) => 'ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;'),
     toBREP: vi.fn((_shape: unknown) => 'CASCADE_BREP_DATA'),
     fromBREP: vi.fn((_data: string) => 'restored-shape-handle'),
@@ -110,13 +115,15 @@ box($width, 20, 30)
   });
 
   describe('exportSTL()', () => {
-    it('delegates to exportSTLBuffer (binary STL of the tessellation)', async () => {
+    it('asks the kernel for binary STL', async () => {
       const engine = await PolyScriptEngine.init();
       const result = engine.exportSTL('mock-shape' as any);
       expect(result).toBeInstanceOf(Uint8Array);
-      // The mock tessellation is one triangle: header + count + one facet.
+      // One facet: 80-byte header, uint32 count, 50 bytes of triangle.
       expect(result.length).toBe(84 + 50);
-      expect(new DataView(result.buffer).getUint32(80, true)).toBe(1);
+      // ascii must not be requested -- that path returns a string.
+      const calls = (engine.kernel.exportStl as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+      expect(calls.at(-1)?.[2]).toBe(false);
     });
   });
 

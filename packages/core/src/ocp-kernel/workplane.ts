@@ -27,7 +27,7 @@ export function boundingBox(oc: OC, shape: Shape): BoundingBox {
  * cutting tool -- never for a reported bbox.
  */
 export function fastBoundingBox(oc: OC, shape: Shape): BoundingBox {
-  const bb = oc.getBoundingBoxFast(shape);
+  const bb = oc.getBoundingBox(shape, { precise: false, useTriangulation: false });
   return {
     xmin: bb.xmin, ymin: bb.ymin, zmin: bb.zmin,
     xmax: bb.xmax, ymax: bb.ymax, zmax: bb.zmax,

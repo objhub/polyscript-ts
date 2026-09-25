@@ -1,6 +1,7 @@
 {
   "name": "@polyscript/ui",
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "type": "module",
   "svelte": "./src/index.ts",
   "exports": {
@@ -21,7 +22,8 @@
     "@codemirror/language": "^6.12.3",
     "@codemirror/search": "^6.6.0",
     "@codemirror/state": "^6.6.0",
-    "@codemirror/view": "^6.40.0"
+    "@codemirror/view": "^6.40.0",
+    "@polyscript/engine": "workspace:*"
   },
   "devDependencies": {
     "@types/three": "^0.183.1",

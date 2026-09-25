@@ -12,7 +12,11 @@ import { describe, it, expect, vi } from 'vitest';
 
 function createMockOC() {
   return {
-    exportStl: vi.fn((_shape: unknown, _ld: number, _ascii: boolean) => 'solid mock\nendsolid mock'),
+    // Since occt-wasm 5.3.0 the kernel writes binary STL itself and returns
+    // bytes; `ascii: true` still returns the text form.
+    exportStl: vi.fn((_shape: unknown, _ld: number, ascii?: boolean) =>
+      ascii ? 'solid mock\nendsolid mock' : new Uint8Array(84 + 50),
+    ),
     exportStep: vi.fn((_shape: unknown) => 'ISO-10303-21;\nHEADER;\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;'),
     toBREP: vi.fn((_shape: unknown) => 'CASCADE_BREP_DATA'),
     fromBREP: vi.fn((_data: string) => 'restored-shape-handle'),
@@ -51,16 +55,17 @@ describe('exportSTLString', () => {
 });
 
 describe('exportSTLBuffer', () => {
-  it('returns binary STL built from the tessellation', async () => {
+  it('asks the kernel for binary STL rather than assembling it', async () => {
+    // Hand-built until occt-wasm 5.3.0, when the binary path stopped mangling
+    // bytes through a UTF-8 std::string (andymai/occt-wasm#308). Verified
+    // against the old implementation on a box, sphere and torus: same facet
+    // count, same byte length, same volume when read back.
     const { exportSTLBuffer } = await import('../src/ocp-kernel/export.js');
     const oc = createMockOC();
-    const buf = exportSTLBuffer(oc as any, 'sh' as any);
+    const buf = exportSTLBuffer(oc as any, 'sh' as any, 0.5);
     expect(buf).toBeInstanceOf(Uint8Array);
-    expect(oc.tessellate).toHaveBeenCalled();
-    expect(oc.exportStl).not.toHaveBeenCalled();
-    // One mock triangle: header + count + one 50-byte facet.
-    expect(buf.length).toBe(84 + 50);
-    expect(new DataView(buf.buffer).getUint32(80, true)).toBe(1);
+    expect(oc.exportStl).toHaveBeenCalledWith('sh', 0.5, false);
+    expect(oc.tessellate).not.toHaveBeenCalled();
   });
 });
 

@@ -135,10 +135,12 @@ poly [build] <input.poly> [-o <output>]
 | `-o file.step` | Export as STEP (`.stp` also accepted) |
 | `-o file.glb` | Export as glTF binary, with `color` preserved per part |
 | `-o file.svg` | Export as a line drawing: hidden-line removal per view, occluded edges dashed |
-| `--format <fmt>` | `stl`, `step`, `glb` or `svg`; overrides the extension |
-| `--view <names>` | SVG viewpoints, comma-separated: `front` `back` `top` `bottom` `left` `right` `iso`. One name draws a single panel; the default is `front,top,right,iso` |
-| `--view-size <px>` | SVG panel size (default 240) |
-| `--no-hidden` | SVG: omit occluded edges instead of dashing them |
+| `-o file.png` | The same drawing rasterised, for readers that take no SVG |
+| `--format <fmt>` | `stl`, `step`, `glb`, `svg` or `png`; overrides the extension |
+| `--view <names>` | SVG/PNG viewpoints, comma-separated: `front` `back` `top` `bottom` `left` `right` `iso`. One name draws a single panel; the default is `front,top,right,iso` |
+| `--view-size <px>` | SVG/PNG panel size (default 240) |
+| `--no-hidden` | SVG/PNG: omit occluded edges instead of dashing them |
+| `--png-scale <n>` | PNG supersampling, 1-4 (default 2). Sharpens lines; does not change the image size |
 | `-D, --define <k=v>` | Override a parameter (repeatable) |
 | `--params-file <path>` | Read parameters from JSON (`-D` wins) |
 | `--mesh-deflection <v>` | Mesh tessellation deflection (default 0.1; higher = coarser, smaller file) |

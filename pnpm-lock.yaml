@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  occt-wasm: file:/tmp/occt-wasm-5.3.0-ps3.tgz
+
 importers:
 
   .:
@@ -34,8 +37,8 @@ importers:
         specifier: ^13.0.0
         version: 13.1.0
       occt-wasm:
-        specifier: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps5/occt-wasm-4.3.2-ps5.tgz
-        version: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps5/occt-wasm-4.3.2-ps5.tgz
+        specifier: file:/tmp/occt-wasm-5.3.0-ps3.tgz
+        version: file:../../../../../../tmp/occt-wasm-5.3.0-ps3.tgz
     devDependencies:
       '@types/node':
         specifier: ^25.5.0
@@ -53,8 +56,8 @@ importers:
   packages/core:
     dependencies:
       occt-wasm:
-        specifier: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps5/occt-wasm-4.3.2-ps5.tgz
-        version: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps5/occt-wasm-4.3.2-ps5.tgz
+        specifier: file:/tmp/occt-wasm-5.3.0-ps3.tgz
+        version: file:../../../../../../tmp/occt-wasm-5.3.0-ps3.tgz
       opentype.js:
         specifier: ^1.3.4
         version: 1.3.4
@@ -74,6 +77,22 @@ importers:
       vitest:
         specifier: ^3.0.0
         version: 3.2.4(@types/node@25.5.0)
+
+  packages/engine:
+    dependencies:
+      '@gltf-transform/core':
+        specifier: 4.3.0
+        version: 4.3.0
+      '@polyscript/browser':
+        specifier: workspace:*
+        version: link:../browser
+      '@polyscript/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ~5.7.0
+        version: 5.7.3
 
   packages/ui:
     dependencies:
@@ -98,6 +117,9 @@ importers:
       '@polyscript/core':
         specifier: workspace:*
         version: link:../core
+      '@polyscript/engine':
+        specifier: workspace:*
+        version: link:../engine
       three:
         specifier: ^0.183.2
         version: 0.183.2
@@ -372,6 +394,9 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@gltf-transform/core@4.3.0':
+    resolution: {integrity: sha512-ZeaQfszGJ9LYwELszu45CuDQCsE26lJNNe36FVmN8xclaT6WDdCj7fwGpQXo0/l/YgAVAHX+uO7YNBW75/SRYw==}
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -886,9 +911,9 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
-  occt-wasm@https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps5/occt-wasm-4.3.2-ps5.tgz:
-    resolution: {integrity: sha512-ogEU3Y3EzjNgj4MN+S9z7vewn14VqDFBX7JsIKJg3Dz50PyHxqptd0C5x73E+L52pIAB/DafOS54ljHpNPInwQ==, tarball: https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps5/occt-wasm-4.3.2-ps5.tgz}
-    version: 4.3.2-ps5
+  occt-wasm@file:../../../../../../tmp/occt-wasm-5.3.0-ps3.tgz:
+    resolution: {integrity: sha512-C/Ub21wpwyhba2NDZvFCdXt8rtoG2P5yb/wXxG+RzOaoLwybox2Ib6WUbhJ1u3Z3wZkrqlPT85dnT0K7RcC+oQ==, tarball: file:../../../../../../tmp/occt-wasm-5.3.0-ps3.tgz}
+    version: 5.3.0-ps3
 
   opentype.js@1.3.4:
     resolution: {integrity: sha512-d2JE9RP/6uagpQAVtJoF0pJJA/fgai89Cc50Yp0EJHk+eLp6QQ7gBoblsnubRULNY132I0J1QKMJ+JTbMqz4sw==}
@@ -923,6 +948,9 @@ packages:
   postcss@8.5.8:
     resolution: {integrity: sha512-OW/rX8O/jXnm82Ey1k44pObPtdblfiuWnrd8X7GJ7emImCOstunGbXUpp7HdBrFQX6rJzn3sPT397Wp5aCwCHg==}
     engines: {node: ^10 || ^12 || >=14}
+
+  property-graph@4.1.0:
+    resolution: {integrity: sha512-AvPcP7XECNWy4LGmFQ77k7un4lSKM4eS29PTvW4ck95uYeLxXPWJM7hLuBqK91FaHqCcgJvIUCuNJjjxKE7VKQ==}
 
   readdirp@4.1.2:
     resolution: {integrity: sha512-GDhwkLfywWL2s6vEjyhri+eXmfH6j1L7JE27WhqLeYzoh/A3DBaYGEj2H/HFZCn/kMfim73FXxEJTw06WtxQwg==}
@@ -1321,6 +1349,10 @@ snapshots:
 
   '@esbuild/win32-x64@0.27.4':
     optional: true
+
+  '@gltf-transform/core@4.3.0':
+    dependencies:
+      property-graph: 4.1.0
 
   '@isaacs/cliui@8.0.2':
     dependencies:
@@ -1780,7 +1812,7 @@ snapshots:
 
   nanoid@3.3.11: {}
 
-  occt-wasm@https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps5/occt-wasm-4.3.2-ps5.tgz:
+  occt-wasm@file:../../../../../../tmp/occt-wasm-5.3.0-ps3.tgz:
     dependencies:
       comlink: 4.4.2
 
@@ -1811,6 +1843,8 @@ snapshots:
       nanoid: 3.3.11
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  property-graph@4.1.0: {}
 
   readdirp@4.1.2: {}
 

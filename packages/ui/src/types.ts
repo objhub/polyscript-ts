@@ -10,26 +10,34 @@ export interface DownloadItem {
 	disabled?: boolean;
 }
 
-export interface MeshPart {
-	positions: Float32Array;
-	normals: Float32Array;
-	indices: Uint32Array;
-	color?: [number, number, number]; // RGB 0..1
-	alpha?: number; // 0..1, default 1
-}
+/**
+ * The mesh types come from core, where everything that touches a mesh can
+ * reach them. Re-exported here so `@polyscript/ui` keeps the surface it
+ * always had.
+ */
+export type { MeshData, MeshPart } from '@polyscript/core';
 
-export interface MeshData {
-	positions: Float32Array;
-	normals: Float32Array;
-	indices: Uint32Array;
-	color?: [number, number, number];
-	colors?: Float32Array; // per-vertex RGB
-	/** Multi-color models: one mesh per part, each with its own material.
-	 *  When present the top-level positions/indices are empty. */
-	parts?: MeshPart[];
-	edgePoints?: Float32Array; // CAD-level edge polylines (XYZ interleaved)
-	lines?: {
-		positions: Float32Array;
-		indices: Uint32Array;
-	}; // Open wires rendered as LineSegments
+/**
+ * Every word ModelWorkbench puts on screen.
+ *
+ * Passed in rather than translated here: the workbench is a component, and
+ * which languages a site speaks -- and how it words things -- is the site's
+ * own business.
+ */
+export interface WorkbenchLabels {
+	/** Tab names. */
+	overview: string;
+	download: string;
+	params: string;
+	source: string;
+	/** Shown in place of the model when there is nothing to show yet. */
+	noPreview: string;
+	/** The model declares no adjustable parameters. */
+	noParams: string;
+	/** A file is being produced; covers the build as well as the write. */
+	preparing: string;
+	building: string;
+	ready: string;
+	buildFailed: string;
+	downloadFailed: string;
 }

@@ -2,6 +2,7 @@
   "name": "@polyscript/browser",
   "version": "0.1.0",
   "description": "PolyScript browser API — PolyScriptEngine and Web Worker support",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

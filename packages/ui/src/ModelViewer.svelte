@@ -4,7 +4,7 @@
 	import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 	import { ViewHelper } from 'three/addons/helpers/ViewHelper.js';
 	import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-	import type { MeshData, MeshPart } from './types';
+	import type { MeshData, MeshPart } from '@polyscript/core';
 
 	/** The B-Rep half of the info panel. Shaped like core's ShapeInfo, declared
 	 *  structurally so @polyscript/ui keeps no dependency on the kernel. */
@@ -66,18 +66,33 @@
 		showGridState = showGridProp;
 	});
 
-	function fitCamera(mesh: THREE.Object3D) {
-		if (!camera || !controls) return;
+	/**
+	 * Where the camera sits to show a model whole: the +X -Y +Z octant, the
+	 * same side the CLI calls `iso`.
+	 *
+	 * Shared by the reset button and by the thumbnail, so the picture in a
+	 * listing is the view the author gets when they open the model.
+	 */
+	function isoView(mesh: THREE.Object3D): { position: THREE.Vector3; target: THREE.Vector3 } {
 		const box = new THREE.Box3().setFromObject(mesh);
-		const center = box.getCenter(new THREE.Vector3());
+		const target = box.getCenter(new THREE.Vector3());
 		const size = box.getSize(new THREE.Vector3());
 		const maxDim = Math.max(size.x, size.y, size.z);
-		camera.position.set(
-			center.x + maxDim * 1.2,
-			center.y - maxDim * 1.2,
-			center.z + maxDim * 0.8,
-		);
-		controls.target.copy(center);
+		return {
+			position: new THREE.Vector3(
+				target.x + maxDim * 1.2,
+				target.y - maxDim * 1.2,
+				target.z + maxDim * 0.8
+			),
+			target
+		};
+	}
+
+	function fitCamera(mesh: THREE.Object3D) {
+		if (!camera || !controls) return;
+		const { position, target } = isoView(mesh);
+		camera.position.copy(position);
+		controls.target.copy(target);
 		controls.update();
 	}
 
@@ -428,6 +443,74 @@ ${lines}</g>
 	 * included -- so the toolbar's camera button had its own cleaner copy of
 	 * this code. One implementation now, and the two agree.
 	 */
+	/**
+	 * The picture a listing shows.
+	 *
+	 * Deliberately not a screenshot of what is on screen. That came out at
+	 * whatever size the author's window happened to be, in whatever direction
+	 * they had last dragged the model to, so a page of cards was a page of
+	 * different framings -- and it could not be taken at all while the preview
+	 * panel was collapsed. This renders the model by itself: always this size,
+	 * always the iso view, grid and axes off, and the live camera untouched.
+	 *
+	 * Drawn into a render target rather than the canvas, so nothing flickers
+	 * and no second WebGL context is created -- contexts are the scarce thing
+	 * here, which is why the listing stopped using live viewers in the first
+	 * place.
+	 */
+	export async function renderThumbnail(width = 800, height = 600): Promise<Blob> {
+		if (!renderer || !scene || !currentMesh) {
+			throw new Error('Nothing to render');
+		}
+
+		const cam = new THREE.PerspectiveCamera(50, width / height, 0.1, 10000);
+		cam.up.set(0, 0, 1);
+		const { position, target } = isoView(currentMesh);
+		cam.position.copy(position);
+		cam.lookAt(target);
+
+		const gridWas = gridHelper?.visible ?? false;
+		const axisWas = axisHelper?.visible ?? false;
+		if (gridHelper) gridHelper.visible = false;
+		if (axisHelper) axisHelper.visible = false;
+
+		const rt = new THREE.WebGLRenderTarget(width, height, {
+			// The default is nearest; a listing shows these scaled down.
+			minFilter: THREE.LinearFilter,
+			magFilter: THREE.LinearFilter
+		});
+		try {
+			renderer.setRenderTarget(rt);
+			renderer.clear();
+			renderer.render(scene, cam);
+
+			const pixels = new Uint8Array(width * height * 4);
+			renderer.readRenderTargetPixels(rt, 0, 0, width, height, pixels);
+
+			// WebGL reads bottom-up; a PNG is top-down.
+			const canvas = document.createElement('canvas');
+			canvas.width = width;
+			canvas.height = height;
+			const ctx = canvas.getContext('2d');
+			if (!ctx) throw new Error('2D context unavailable');
+			const image = ctx.createImageData(width, height);
+			const row = width * 4;
+			for (let y = 0; y < height; y++) {
+				image.data.set(pixels.subarray((height - 1 - y) * row, (height - y) * row), y * row);
+			}
+			ctx.putImageData(image, 0, 0);
+
+			return await new Promise<Blob>((resolve, reject) => {
+				canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Failed to encode PNG'))), 'image/png');
+			});
+		} finally {
+			renderer.setRenderTarget(null);
+			rt.dispose();
+			if (gridHelper) gridHelper.visible = gridWas;
+			if (axisHelper) axisHelper.visible = axisWas;
+		}
+	}
+
 	export async function screenshot(): Promise<Blob> {
 		if (!renderer || !scene || !camera) {
 			throw new Error('Renderer not ready');

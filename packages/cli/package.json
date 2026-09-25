@@ -1,6 +1,7 @@
 {
   "name": "@polyscript/cli",
   "version": "0.1.4",
+  "license": "Apache-2.0",
   "description": "PolyScript CLI — check, dump-ast, build",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,7 +18,7 @@
   "dependencies": {
     "@polyscript/core": "workspace:*",
     "commander": "^13.0.0",
-    "occt-wasm": "https://github.com/polygoro/occt-wasm/releases/download/v4.3.2-ps5/occt-wasm-4.3.2-ps5.tgz"
+    "occt-wasm": "https://github.com/polygoro/occt-wasm/releases/download/v5.3.0-ps1/occt-wasm-5.3.0-ps1.tgz"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",

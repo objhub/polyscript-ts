@@ -41,3 +41,4 @@ export type {
   Workplane, Implicit2DPrimitive,
 } from './ast.js';
 export { KEYWORDS, SOURCE_COMMANDS, PIPE_OP_KEYWORDS, SELECTOR_ALIASES } from './ast.js';
+export type { MeshData, MeshPart } from './mesh.js';

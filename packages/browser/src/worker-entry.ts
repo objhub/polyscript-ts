@@ -196,7 +196,7 @@ function cachedShapeInfo(engine: PolyScriptEngine, shape: any): ShapeInfo {
  * Run `fn` against a throwaway copy of `shape`, then release the copy.
  *
  * BRepMesh_IncrementalMesh writes its triangulation into the shape it meshes,
- * and BRepBndLib::Add -- behind getBoundingBoxFast, behind faceCenter, behind
+ * and BRepBndLib::Add -- behind getBoundingBox({ precise: false }), behind faceCenter, behind
  * every selector -- prefers that triangulation to the geometry when it is
  * there. So meshing the shape the memo holds moved face centres by up to
  * 0.06 on 07_keyboard_case, which changed the arguments of everything a
