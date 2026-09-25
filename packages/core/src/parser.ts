@@ -1409,17 +1409,8 @@ export class Parser {
     if (this.match(TokenType.Dollar)) this.advance(); // optional $
     const variable = this.expect(TokenType.Identifier).value;
     this.expect(TokenType.Keyword, 'in');
-    // Iterable: legacy `range(n)` shorthand passes just `n` (evaluator
-    // expands it); any other expression is evaluated and must yield a list.
-    let iterable: Expression;
-    if (this.matchKeyword('range') && this.peek(1).type === TokenType.LParen) {
-      this.advance(); // 'range'
-      this.expect(TokenType.LParen);
-      iterable = this.parseExpr();
-      this.expect(TokenType.RParen);
-    } else {
-      iterable = this.parseExpr();
-    }
+    // Iterable: any expression that yields a list (`range(...)` is an ordinary call).
+    const iterable = this.parseExpr();
     this.expect(TokenType.RBracket);
     return { type: 'ListComp', expr, variable, iterable, loc: this.loc(startToken) };
   }

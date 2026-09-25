@@ -980,7 +980,7 @@ box 10 10 10`);
     });
 
     // Range builtin
-    it('range with 1 arg returns count for list comp', () => {
+    it('range with 1 arg counts from 0 in a list comp', () => {
       const val = evalExpr('$x = [$i for $i in range(3)]') as Value[];
       expect(val).toEqual([0, 1, 2]);
     });
@@ -988,6 +988,28 @@ box 10 10 10`);
     it('list comprehension with range(5) produces 5 elements', () => {
       const val = evalExpr('$x = [$i * 3 for $i in range(5)]') as Value[];
       expect(val).toEqual([0, 3, 6, 9, 12]);
+    });
+
+    it('range(start, end) inside a list comprehension', () => {
+      const val = evalExpr('$x = [$i for $i in range(1, 6)]') as Value[];
+      expect(val).toEqual([1, 2, 3, 4, 5]);
+    });
+
+    it('range(start, end, step) inside a list comprehension', () => {
+      const val = evalExpr('$x = [$i * 2 for $i in range(0, 10, 3)]') as Value[];
+      expect(val).toEqual([0, 6, 12, 18]);
+    });
+
+    it('range returns a list outside a comprehension', () => {
+      expect(evalExpr('$x = range(5)')).toEqual([0, 1, 2, 3, 4]);
+      expect(evalExpr('$x = range(1, 4)')).toEqual([1, 2, 3]);
+      expect(evalExpr('$x = range(0, 10, 3)')).toEqual([0, 3, 6, 9]);
+      expect(evalExpr('$x = range(5, 0, -2)')).toEqual([5, 3, 1]);
+    });
+
+    it('range rejects a zero step and a wrong argument count', () => {
+      expect(() => evalExpr('$x = range(0, 5, 0)')).toThrow(/step/);
+      expect(() => evalExpr('$x = range(1, 2, 3, 4)')).toThrow(/1 to 3/);
     });
 
     // Tuple and list

@@ -485,16 +485,10 @@ export class Evaluator {
 
   private evalListComp(node: ListComp): Value {
     const iterVal = this.evalExpr(node.iterable);
-    let items: number[];
-
-    if (typeof iterVal === 'number') {
-      // range(n) — iterable was parsed as range(expr), so the value is the count
-      items = Array.from({ length: iterVal }, (_, i) => i);
-    } else if (Array.isArray(iterVal)) {
-      items = iterVal.map(v => asNumber(v));
-    } else {
-      throw new EvalError(`List comprehension iterable must be a number (range) or list`);
+    if (!Array.isArray(iterVal)) {
+      throw new EvalError(`List comprehension iterable must be a list`);
     }
+    const items = iterVal.map(v => asNumber(v));
 
     const result: Value[] = [];
     const childEnv = this.env.child();
@@ -536,16 +530,16 @@ export class Evaluator {
     // range() builtin
     if (name === 'range') {
       const args = argExprs.map(e => asNumber(this.evalExpr(e)));
-      if (args.length === 1) return args[0]; // range(n) returns n for ListComp
-      if (args.length === 2) {
-        return Array.from({ length: args[1] - args[0] }, (_, i) => args[0] + i);
+      if (args.length < 1 || args.length > 3) {
+        throw new EvalError(`range() takes 1 to 3 arguments, got ${args.length}`);
       }
-      if (args.length === 3) {
-        const result: number[] = [];
-        for (let i = args[0]; i < args[1]; i += args[2]) result.push(i);
-        return result;
-      }
-      return 0;
+      const [start, end, step] =
+        args.length === 1 ? [0, args[0], 1] : [args[0], args[1], args[2] ?? 1];
+      if (step === 0) throw new EvalError('range() step must not be zero');
+      const result: number[] = [];
+      if (step > 0) for (let i = start; i < end; i += step) result.push(i);
+      else for (let i = start; i > end; i += step) result.push(i);
+      return result;
     }
 
     // User-defined functions
