@@ -1,5 +1,5 @@
 /**
- * Parity tests for the CLI surface that the polyscript-modeling verification
+ * Parity tests for the CLI surface that the poly skill's verification
  * workflow depends on: `info`, `--trace`, `--strict`, `--json`, and the
  * 0/1/2/3/4 exit-code contract. Mirrors python/tests/test_check_trace.py.
  *

@@ -1,5 +1,5 @@
 /**
- * The polyscript-modeling skill's context model is generated from the
+ * The poly skill's context model is generated from the
  * validator (tests/gen_context_model.ts). Its hand-copied predecessor drifted
  * -- no `rotate` / `mirror` for Face / Wire -- and taught an AI to stand a
  * path up with `rotate 90 0 0`. This fails when the tables are stale.
