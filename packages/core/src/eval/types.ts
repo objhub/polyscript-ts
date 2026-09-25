@@ -117,6 +117,29 @@ export const MATH_FUNCS: Record<string, (...args: number[]) => number> = {
   len: ((arr: unknown) => Array.isArray(arr) ? arr.length : 0) as (...args: number[]) => number,
 };
 
+/** Argument counts `[min, max]` of the built-in functions, `range` included.
+ *  The validator reports a call outside the range as `call.arity`: before
+ *  this, `rad($R, $k, $t)` silently dropped the extra arguments. */
+export const BUILTIN_ARITY: Record<string, [number, number]> = {
+  ...Object.fromEntries(Object.keys(MATH_FUNCS).map(name => [name, [1, 1]])),
+  atan2: [2, 2],
+  min: [1, Infinity],
+  max: [1, Infinity],
+  range: [1, 3],
+};
+
+/** One-line gloss of each built-in, for messages that name one. */
+export const BUILTIN_GLOSS: Record<string, string> = {
+  sin: 'sine of degrees', cos: 'cosine of degrees', tan: 'tangent of degrees',
+  asin: 'arcsine in degrees', acos: 'arccosine in degrees', atan: 'arctangent in degrees',
+  atan2: 'arctangent of y/x in degrees', sqrt: 'square root', abs: 'absolute value',
+  floor: 'round down', ceil: 'round up', round: 'round to nearest',
+  min: 'smallest argument', max: 'largest argument',
+  radians: 'degrees → radians', degrees: 'radians → degrees',
+  rad: 'degrees → radians', deg: 'radians → degrees',
+  len: 'length of a list', range: 'list of integers',
+};
+
 // ---------------------------------------------------------------------------
 // Named arg helpers
 // ---------------------------------------------------------------------------

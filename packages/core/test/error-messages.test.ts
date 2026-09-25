@@ -177,3 +177,36 @@ describe('validator messages name the keyword and the allowed contexts', () => {
     expect(messages('box 10 10 10 | wire [(0, 0), (1, 0)]')[0]).toMatch(/^'wire' is not valid/);
   });
 });
+
+describe('built-in names cannot be taken by a def (issue 2026-09-25)', () => {
+  function codes(source: string): string[] {
+    return validate(parse(source)).map(e => e.code);
+  }
+
+  it('a def named like a built-in is def.shadows-builtin', () => {
+    const errs = validate(parse('def rad($x) = $x * 2\nbox 1 1 1'));
+    expect(errs.map(e => e.code)).toEqual(['def.shadows-builtin']);
+    expect(errs[0].message).toMatch(/^'rad' is a built-in function \(degrees → radians\)/);
+    expect(errs[0].line).toBe(1);
+    expect(codes('def len($a) = 3')).toEqual(['def.shadows-builtin']);
+  });
+
+  it('a built-in called with the wrong count is call.arity, wherever the call sits', () => {
+    expect(codes('$x = rad(1, 2)')).toEqual(['call.arity']);
+    expect(codes('box (sin(1, 2)) 1 1')).toEqual(['call.arity']);
+    expect(codes('box 1 1 1 | faces ">Z" | hole (sqrt())')).toEqual(['call.arity']);
+    expect(codes('def f($a) = [atan2($a) for $i in range(1, 2, 3, 4)]')).toEqual(['call.arity', 'call.arity']);
+    expect(validate(parse('$x = rad(1, 2)'))[0].message).toBe("built-in 'rad' (degrees → radians) takes 1 argument, got 2");
+  });
+
+  it('the legal counts pass', () => {
+    expect(codes('$x = min(1, 2, 3) + max(4) + atan2(1, 1) + len([1]) + range(1, 5, 2)[0] + range(3)[0]')).toEqual([]);
+    expect(codes('def radius_at($R, $k) = $R * cos($k)')).toEqual([]);
+  });
+
+  it('the issue\'s pot profile stops at check instead of building a 1mm part', () => {
+    const src = 'def rad($R, $k, $t) = $R * (1 + 0.08 * cos(8 * 360 * $k / 48)) - $t\n'
+      + 'def px($R, $k, $rot, $t) = rad($R, $k, $t) * cos(360 * $k / 48 + $rot)';
+    expect(codes(src)).toEqual(['def.shadows-builtin', 'call.arity']);
+  });
+});

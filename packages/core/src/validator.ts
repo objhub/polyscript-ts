@@ -8,10 +8,11 @@
 
 import type {
   Program, Statement, Expression, PipeOp, Pipeline,
-  FuncDef,
+  FuncDef, FuncCall,
 } from './ast.js';
 import { nextContext, static2DType, shapeOperatorKind, opKeyword } from './context.js';
 import type { DiagnosticCode } from './diagnostics.js';
+import { BUILTIN_ARITY, BUILTIN_GLOSS } from './eval/types.js';
 
 // --- Context types ---
 
@@ -187,8 +188,46 @@ export function validate(program: Program): ValidationError[] {
   for (const stmt of program.statements) {
     validateStatement(stmt, errors, funcDefs, variables);
   }
+  validateBuiltinCalls(program, errors);
 
   return errors;
+}
+
+/** `rad(a, b, c)`: calls to built-ins resolve before any def, so a count
+ *  outside the built-in's range means the call was meant for something else. */
+function validateBuiltinCalls(program: Program, errors: ValidationError[]): void {
+  walkNodes(program, node => {
+    if (node.type !== 'FuncCall') return;
+    const call = node as FuncCall;
+    const arity = BUILTIN_ARITY[call.name];
+    if (!arity) return;
+    const [min, max] = arity;
+    const n = call.args.length;
+    if (n >= min && n <= max) return;
+    const want = min === max ? `${min}` : max === Infinity ? `at least ${min}` : `${min} to ${max}`;
+    errors.push({
+      code: 'call.arity',
+      message: `built-in '${call.name}' (${BUILTIN_GLOSS[call.name]}) takes ${want} argument${want === '1' ? '' : 's'}, got ${n}`,
+      nodeType: 'FuncCall',
+      hint: `if you meant your own function, name it something other than '${call.name}'`,
+      ...(call.loc ? { line: call.loc.line, column: call.loc.column } : {}),
+    });
+  });
+}
+
+/** Visit every AST node below `node`, whatever its type: anything with a
+ *  string `type` counts, so new node kinds are covered without a case here. */
+function walkNodes(node: unknown, visit: (n: { type: string }) => void): void {
+  if (Array.isArray(node)) {
+    for (const child of node) walkNodes(child, visit);
+    return;
+  }
+  if (node === null || typeof node !== 'object') return;
+  const obj = node as Record<string, unknown>;
+  if (typeof obj.type === 'string') visit(obj as { type: string });
+  for (const [key, child] of Object.entries(obj)) {
+    if (key !== 'loc' && child !== null && typeof child === 'object') walkNodes(child, visit);
+  }
 }
 
 function validateStatement(
@@ -199,6 +238,15 @@ function validateStatement(
 ): void {
   switch (stmt.type) {
     case 'FuncDef':
+      if (stmt.name in BUILTIN_ARITY) {
+        errors.push({
+          code: 'def.shadows-builtin',
+          message: `'${stmt.name}' is a built-in function (${BUILTIN_GLOSS[stmt.name]}); calls would never reach this def`,
+          nodeType: 'FuncDef',
+          hint: `rename the def, e.g. 'my_${stmt.name}'`,
+          ...(stmt.loc ? { line: stmt.loc.line, column: stmt.loc.column } : {}),
+        });
+      }
       funcDefs.set(stmt.name, stmt);
       // Validate function body
       validateExpression(stmt.body, errors, funcDefs, variables);

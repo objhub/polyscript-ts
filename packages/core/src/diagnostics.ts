@@ -22,7 +22,7 @@ export type Severity = 'error' | 'warning' | 'info';
  * The closed set of diagnostic codes.
  *
  * Namespaced by phase so the prefix alone says where the run died:
- * `syntax.` parse, `context.`/`arg.` validation, `selector.`/`eval.` runtime,
+ * `syntax.` parse, `context.`/`arg.`/`def.`/`call.` validation, `selector.`/`eval.` runtime,
  * `check.` post-build observations (informational -- never fail a build),
  * `param.`/`io.` the CLI's own surface.
  */
@@ -30,6 +30,8 @@ export const DIAGNOSTIC_CODES = [
   'syntax.parse',
   'context.invalid-op',
   'arg.missing',
+  'def.shadows-builtin',
+  'call.arity',
   'selector.empty',
   'selector.unknown',
   'eval.error',
@@ -170,6 +172,29 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
     why: 'The operation has no default for that argument, so there is nothing\n'
       + 'sensible to assume.',
     fix: 'Supply it: `fillet 2`, `shell 1.5`, `extrude 10`, `hole 3`.',
+  },
+  'def.shadows-builtin': {
+    title: 'A def has the name of a built-in function',
+    why: 'Calls resolve to the built-in first, so the def is never reached.\n'
+      + 'Nothing else would tell you: `def rad($R, $k, $t) = ...` followed by\n'
+      + '`rad($R, $k, $t)` calls the degrees-to-radians built-in, drops the\n'
+      + 'extra arguments, and builds a part a hundred times too small with\n'
+      + 'exit 0.',
+    fix: 'Rename the def:\n'
+      + '  def rad($R, $k) = ...          # never called\n'
+      + '  def radius_at($R, $k) = ...    # called\n'
+      + 'The built-ins are sin cos tan asin acos atan atan2 sqrt abs floor\n'
+      + 'ceil round min max radians degrees rad deg len range.',
+  },
+  'call.arity': {
+    title: 'A built-in function was called with the wrong number of arguments',
+    why: 'Built-ins take a fixed number of arguments (min and max take one or\n'
+      + 'more, range one to three). Extra arguments used to be dropped\n'
+      + 'silently, which usually means the call was meant for a def of the\n'
+      + 'same name.',
+    fix: 'Pass the arguments the built-in takes: `sin(30)`, `atan2(y, x)`,\n'
+      + '`range(0, 10, 2)`. If you meant your own function, give it a name\n'
+      + 'that is not a built-in (see def.shadows-builtin).',
   },
   'selector.empty': {
     title: 'A selector matched nothing',
