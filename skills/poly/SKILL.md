@@ -68,9 +68,10 @@ rejected (`param.type`). Branch on it with `if engrave then (...) else (...)`
 
 A fixed set of options (`bolt` M3 / M4 / M5) is `@param choices:[...]`, a
 dropdown; `-D` then accepts only those values. `@profile { ... }` switches
-several parameters at once. Every option (`min max step label desc choices
-group type hidden`) and the built-in functions are in
-`references/cheatsheet.md`; a misspelt option warns `param.unknown-option`.
+several parameters at once. The options (`min max step label desc choices
+group type hidden`) are named in `references/cheatsheet.md` and explained in
+`references/language/param-annotation.md`; a misspelt option warns
+`param.unknown-option`.
 
 Consult `references/cheatsheet.md` for syntax and `references/recipes.md` for
 the standard shapes (enclosure, boss, rib, drainage grid, revolved vessel).
@@ -217,9 +218,15 @@ transitions to.
 
 ## Reference files
 
+The cheatsheet says what exists; `references/language/` says how it works.
+**Before deciding a feature does not exist, or guessing at its options, look
+it up**: find the topic in `references/language/index.md` and read that one
+file (a few hundred to ~1700 tokens), not the whole reference.
+
 | file | when to read it |
 |---|---|
-| `references/cheatsheet.md` | syntax lookup: primitives, pipe ops, selectors |
+| `references/cheatsheet.md` | syntax lookup: primitives, pipe ops, selectors. It names **every** feature, briefly |
+| `references/language/index.md` | how a feature works in full (its options, rules, edge cases). The index lists one file per topic with its size; read only the file you need, never all of them |
 | `references/context-model.md` | a validation error about context |
 | `references/antipatterns.md` | anything failed, or produced a surprising shape |
 | `references/vocabulary.md` | turning the words of a request into operations |

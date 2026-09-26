@@ -297,44 +297,16 @@ if $x > 0 then $x else -$x
 
 ## パラメータ（`@param` / `@profile`）
 
-変数宣言の直前の行に `@param` を書くと、GUIカスタマイザーで操作できるパラメータになる。**先頭に `#` を付けない**（`# @param` はただのコメントで、`poly verify` が `param.commented` を警告する）。
+変数宣言の直前の行に `@param` を書く（**先頭に `#` を付けない**）。型は既定値から決まる（数値・文字列・`true`/`false`）。
 
 ```
-@param 60..120 step:5 desc:"幅 (mm)" group:"寸法"
+@param 60..120 step:5 desc:"幅 (mm)"
 width = 80
 @param choices:["M3", "M4", "M5"] desc:"ねじ"
 bolt = "M4"
-@param desc:"通気穴を付ける"
-vents = true
 ```
 
-| オプション | 値 | 意味 |
-|---|---|---|
-| `min` / `max` | 数値 | 範囲（スライダー）。`1..100` は `min:1 max:100`、`1..100..0.5` は `step:0.5` も含む |
-| `step` | 数値 | スライダーの刻み |
-| `desc` | 文字列 | 説明（ツールチップ） |
-| `label` | 文字列 | 表示名（省略時は変数名） |
-| `choices` | リスト | 選択肢（ドロップダウン） |
-| `group` | 文字列 | GUIのグループ（既定 `"General"`） |
-| `type` | `"int"` `"float"` `"string"` `"bool"` | 型。省略時は既定値から推論 |
-| `hidden` | `true` / `false` | GUIに表示しない |
-
-型は既定値から決まる: `80` → int、`2.5` → float、`"M4"` → string、`true`/`false` → bool（チェックボックス）。表にないキーは無視され、`poly verify` が `param.unknown-option` を警告する。
-
-`choices` の値は条件式で寸法に対応させる:
-
-```
-$d = if bolt == "M3" then 3.4 else if bolt == "M4" then 4.5 else 5.5
-```
-
-`@profile` は複数の変数を一括で切り替えるプリセット（GUIのドロップダウン）。1ファイルに1つ:
-
-```
-@profile {
-  "S": { width: 60, bolt: "M3" },
-  "L": { width: 120, bolt: "M5" }
-}
-```
+オプション: `min` `max` `step` `desc` `label` `choices`（ドロップダウン） `group` `type` `hidden`。`@profile { "S": { ... }, "L": { ... } }` は複数の変数を一括で切り替えるプリセット。使い方の詳細は言語リファレンス (`references/language/index.md`)の「@paramアノテーション」「@profileアノテーション」。
 
 ## CLI
 
