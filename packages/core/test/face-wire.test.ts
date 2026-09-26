@@ -6,7 +6,9 @@
  * booleans on a selected face, wires being refused where an area is needed.
  * Expected numbers are analytic where a closed form exists.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { setTextFont, resetFontCache } from '../src/ocp-kernel/text-render.js';
 import { parse } from '../src/parser.js';
 import { Evaluator } from '../src/evaluator.js';
 import { validate } from '../src/validator.js';
@@ -111,6 +113,15 @@ describe('Face / Wire: every face in the context is consumed', () => {
 });
 
 describe('Face / Wire: text glyph counters are holes', () => {
+  // A fixed font, not whatever the machine has: the CI runners have no
+  // Japanese font, and a missing "回" is drawn as its .notdef box -- one
+  // region -- which is how this test once passed for the wrong reason.
+  beforeAll(() => {
+    const b = readFileSync(new URL('../../browser/fonts/NotoSansJP-Regular.ttf', import.meta.url));
+    setTextFont(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer);
+  });
+  afterAll(() => resetFontCache());
+
   it('"O" is a ring: thinner than its filled outline, and a center drill changes nothing', () => {
     const o = volume('text "O" 20 | extrude 2');
     expect(o).toBeLessThan(200);
