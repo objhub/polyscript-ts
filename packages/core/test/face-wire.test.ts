@@ -117,10 +117,13 @@ describe('Face / Wire: text glyph counters are holes', () => {
     expect(volume('text "O" 20 | extrude 2 | diff (cylinder 1 2)')).toBeCloseTo(o, 6);
   });
 
-  it('"8" is valid and "回" is one solid', () => {
+  it('"8" is valid and "回" is a ring plus its island', () => {
     const eight = run('text "8" 20 | extrude 2');
     expect(oc.isValid(eight.shape!)).toBe(true);
-    expect(solids('text "回" 20 | extrude 2')).toBe(1);
+    // The outer square with its counter as a hole, and the inner square as a
+    // separate region: 2 solids. (It read 1 while the font had no "回" and
+    // drew its .notdef box instead.)
+    expect(solids('text "回" 20 | extrude 2')).toBe(2);
   });
 
   it('cutting "A" into a face keeps the counter', () => {

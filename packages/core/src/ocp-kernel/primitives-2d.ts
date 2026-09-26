@@ -2,6 +2,7 @@
  * OCP Kernel 2D primitives — rect, circle, ellipse, polygon, text.
  */
 
+import { codedError } from '../diagnostics.js';
 import type { WpState } from './types.js';
 import { cloneState } from './types.js';
 import { to3d } from './geometry.js';
@@ -55,13 +56,21 @@ export function wpPolygon(s: WpState, pts: [number, number][]): WpState {
 }
 
 export function wpText(s: WpState, content: string, size: number, _depth: number): WpState {
-  // Try real font rendering via opentype.js
   const faces = textToFaces(s.oc, content, size, s.plane);
   if (faces && faces.length > 0) {
     return cloneState(s, { faces: [...s.faces, ...faces] });
   }
-  // Fallback: rectangular placeholder
-  const w = size * String(content).length * 0.6;
-  const h = size;
-  return wpRect(s, w, h);
+  if (faces === null) {
+    // No font. This used to draw a rectangle the size of the text instead,
+    // silently: in the browser, where no font was ever supplied, every
+    // `text` came out as a plain slab or pocket.
+    throw codedError(
+      'eval.error',
+      'text: no font available to draw the glyphs',
+      'install Noto Sans JP (the CLI searches the system font folders); '
+        + 'in a browser, give the engine a font (PolyScriptEngine.init({ font }))',
+    );
+  }
+  // Whitespace only, or characters the font has no outlines for.
+  return s;
 }

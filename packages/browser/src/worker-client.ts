@@ -45,6 +45,7 @@ export interface WorkerExportResult {
 export class PolyWorker {
   private worker: Worker;
   private wasmUrl: string | undefined;
+  private fontUrl: string | undefined;
   private nextId = 0;
   private pending = new Map<number, { resolve: (v: WorkerResponse) => void; reject: (e: Error) => void }>();
   private initPromise: Promise<void> | null = null;
@@ -63,14 +64,18 @@ export class PolyWorker {
   /**
    * @param workerUrl  URL or Worker instance for the worker script
    * @param wasmUrl    URL of the occt-wasm.wasm file (passed to the worker for init)
+   * @param options.fontUrl  TrueType / OpenType font for `text` (default: the
+   *   bundled Noto Sans JP). Fetched in the worker the first time a build uses
+   *   `text`.
    */
-  constructor(workerUrl: string | URL | Worker, wasmUrl?: string) {
+  constructor(workerUrl: string | URL | Worker, wasmUrl?: string, options: { fontUrl?: string } = {}) {
     if (workerUrl instanceof Worker) {
       this.worker = workerUrl;
     } else {
       this.worker = new Worker(workerUrl, { type: 'module' });
     }
     this.wasmUrl = wasmUrl;
+    this.fontUrl = options.fontUrl;
 
     this.worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
       const resp = e.data;
@@ -102,7 +107,7 @@ export class PolyWorker {
   }
 
   private async doInit(): Promise<void> {
-    const resp = await this.send({ type: 'init', wasmUrl: this.wasmUrl });
+    const resp = await this.send({ type: 'init', wasmUrl: this.wasmUrl, fontUrl: this.fontUrl });
     if (!resp.ok) throw new Error(resp.error ?? 'Worker init failed');
     this._ready = true;
   }

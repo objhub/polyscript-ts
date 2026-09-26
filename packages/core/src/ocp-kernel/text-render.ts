@@ -10,6 +10,7 @@
 
 import type { OC, Pln, Wire, Face } from './types.js';
 import { to3d } from './geometry.js';
+import { pushWarning } from '../diagnostics.js';
 import * as opentype from 'opentype.js';
 
 // ---------------------------------------------------------------------------
@@ -31,6 +32,7 @@ interface OpentypeFont {
   ascender: number;
   descender: number;
   unitsPerEm: number;
+  charToGlyphIndex(ch: string): number;
   getPath(text: string, x: number, y: number, fontSize: number): OpentypePath;
   getAdvanceWidth(text: string, fontSize: number): number;
 }
@@ -66,6 +68,14 @@ let _userFontBuffer: ArrayBuffer | null = null;
 /** Cached parsed Font object. */
 let _cachedFont: OpentypeFont | null | undefined; // undefined = not yet attempted
 
+/** Where the cached font came from (a file path in Node, null for a buffer). */
+let _cachedFontPath: string | null = null;
+
+/** The font file text is rendered with, when it came from the filesystem. */
+export function textFontPath(): string | null {
+  return _cachedFontPath;
+}
+
 /**
  * Set a font buffer (ArrayBuffer) for use in browser environments.
  * Call this before any text rendering to provide a TrueType/OpenType font.
@@ -80,11 +90,25 @@ export function setTextFont(buffer: ArrayBuffer): void {
  */
 export function resetFontCache(): void {
   _cachedFont = undefined;
+  _cachedFontPath = null;
   _userFontBuffer = null;
 }
 
-/** Well-known sans-serif font names to search. */
+/**
+ * Font files searched, in priority order (file names, compared ignoring
+ * case). Noto Sans JP comes first so Japanese text renders and the glyphs
+ * match live / objhub, which ship it; the Noto CJK packaging that Linux
+ * distributions install (`fonts-noto-cjk`: one .ttc for JP/KR/SC/TC/HK) is
+ * next, then the Latin-only fonts that were searched before.
+ * TODO: let the user choose the font (a CLI option / @font annotation).
+ */
 const PREFERRED_FONTS = [
+  'NotoSansJP-Regular.ttf',
+  'NotoSansJP-Regular.otf',
+  'NotoSansJP[wght].ttf',
+  'NotoSansJP-VariableFont_wght.ttf',
+  'NotoSansCJKjp-Regular.otf',
+  'NotoSansCJK-Regular.ttc',
   'DejaVuSans.ttf',
   'LiberationSans-Regular.ttf',
   'NotoSans-Regular.ttf',
@@ -102,91 +126,127 @@ const SEARCH_DIRS = [
 ];
 
 /**
- * Search the filesystem for a TrueType font file (Node.js only).
- * Returns the file path or null.
+ * Search the filesystem for a font file (Node.js only): the first of
+ * PREFERRED_FONTS that exists anywhere under the font directories, else the
+ * first .ttf / .otf found. Returns the path or null.
  */
 function findFontNode(): string | null {
   const fs = nodeBuiltin<typeof import('fs')>('fs');
   const path = nodeBuiltin<typeof import('path')>('path');
   if (!fs || !path) return null;
-  try {
-
-    // Also search ~/Library/Fonts on macOS
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-    const allDirs = [...SEARCH_DIRS];
-    if (homeDir) {
-      allDirs.push(path.join(homeDir, 'Library', 'Fonts'));
-    }
-
-    for (const fontName of PREFERRED_FONTS) {
-      for (const dir of allDirs) {
-        try {
-          const found = findFileRecursive(fs, path, dir, fontName);
-          if (found) return found;
-        } catch {
-          // directory doesn't exist or not readable
-        }
-      }
-    }
-
-    // Fallback: first .ttf found
-    for (const dir of allDirs) {
-      try {
-        const found = findFirstTTF(fs, path, dir);
-        if (found) return found;
-      } catch {
-        // directory doesn't exist or not readable
-      }
-    }
-  } catch {
-    // fs/path not available (browser environment)
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+  const dirs = [...SEARCH_DIRS];
+  if (homeDir) {
+    dirs.push(path.join(homeDir, 'Library', 'Fonts'));
+    dirs.push(path.join(homeDir, '.local', 'share', 'fonts'));
+    dirs.push(path.join(homeDir, '.fonts'));
   }
-  return null;
-}
 
-function findFileRecursive(
-  fs: typeof import('fs'),
-  path: typeof import('path'),
-  dir: string,
-  target: string,
-): string | null {
-  try {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
+  // One walk, indexed by lower-cased file name: Windows ships `arial.ttf`,
+  // which an exact-case match never found (it then took whatever .ttf came
+  // first, possibly a symbol font).
+  const byName = new Map<string, string>();
+  let firstAny: string | null = null;
+  const walk = (dir: string, depth: number): void => {
+    if (depth > 6) return;
+    let entries: import('fs').Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return; // missing or unreadable
+    }
     for (const entry of entries) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        const found = findFileRecursive(fs, path, full, target);
-        if (found) return found;
-      } else if (entry.name === target) {
-        return full;
+        walk(full, depth + 1);
+      } else {
+        const lower = entry.name.toLowerCase();
+        if (!byName.has(lower)) byName.set(lower, full);
+        if (!firstAny && (lower.endsWith('.ttf') || lower.endsWith('.otf'))) firstAny = full;
       }
     }
-  } catch {
-    // permission denied or non-existent
+  };
+  for (const dir of dirs) walk(dir, 0);
+
+  for (const name of PREFERRED_FONTS) {
+    const found = byName.get(name.toLowerCase());
+    if (found) return found;
   }
-  return null;
+  return firstAny;
 }
 
-function findFirstTTF(
-  fs: typeof import('fs'),
-  path: typeof import('path'),
-  dir: string,
-): string | null {
-  try {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        const found = findFirstTTF(fs, path, full);
-        if (found) return found;
-      } else if (entry.name.endsWith('.ttf')) {
-        return full;
-      }
+// ---------------------------------------------------------------------------
+// Font collections (.ttc)
+// ---------------------------------------------------------------------------
+
+/** The family names (name IDs 1 and 16) of the sfnt at `base` in `view`. */
+function sfntFamilies(view: DataView, base: number): string[] {
+  const numTables = view.getUint16(base + 4);
+  for (let i = 0; i < numTables; i++) {
+    const rec = base + 12 + i * 16;
+    const tag = String.fromCharCode(view.getUint8(rec), view.getUint8(rec + 1), view.getUint8(rec + 2), view.getUint8(rec + 3));
+    if (tag !== 'name') continue;
+    const off = view.getUint32(rec + 8);
+    const count = view.getUint16(off + 2);
+    const strings = off + view.getUint16(off + 4);
+    const out: string[] = [];
+    for (let j = 0; j < count; j++) {
+      const r = off + 6 + j * 12;
+      const platform = view.getUint16(r);
+      const nameId = view.getUint16(r + 6);
+      if (platform !== 3 || (nameId !== 1 && nameId !== 16)) continue;
+      const len = view.getUint16(r + 8);
+      const start = strings + view.getUint16(r + 10);
+      let str = '';
+      for (let k = 0; k < len; k += 2) str += String.fromCharCode(view.getUint16(start + k));
+      out.push(str);
     }
-  } catch {
-    // permission denied or non-existent
+    return out;
   }
-  return null;
+  return [];
+}
+
+/**
+ * Extract one font from a TrueType collection as a standalone sfnt, which
+ * opentype.js (1.x) can parse: it rejects the `ttcf` container. Table offsets
+ * in a collection are relative to the file, so the tables are copied into a
+ * fresh file with new offsets. Picks the first member whose family name
+ * matches `prefer` (the JP member of Noto Sans CJK), else the first.
+ */
+export function fontFromCollection(buffer: ArrayBuffer, prefer: RegExp = /\bJP\b/): ArrayBuffer {
+  const view = new DataView(buffer);
+  const numFonts = view.getUint32(8);
+  let base = view.getUint32(12);
+  for (let i = 0; i < numFonts; i++) {
+    const b = view.getUint32(12 + i * 4);
+    if (sfntFamilies(view, b).some(f => prefer.test(f))) { base = b; break; }
+  }
+  const numTables = view.getUint16(base + 4);
+  const headerLen = 12 + numTables * 16;
+  let size = headerLen;
+  for (let i = 0; i < numTables; i++) size += (view.getUint32(base + 12 + i * 16 + 12) + 3) & ~3;
+  const out = new Uint8Array(size);
+  const outView = new DataView(out.buffer);
+  const src = new Uint8Array(buffer);
+  out.set(src.subarray(base, base + 12), 0);
+  let pos = headerLen;
+  for (let i = 0; i < numTables; i++) {
+    const rec = base + 12 + i * 16;
+    const off = view.getUint32(rec + 8);
+    const len = view.getUint32(rec + 12);
+    out.set(src.subarray(rec, rec + 16), 12 + i * 16);
+    outView.setUint32(12 + i * 16 + 8, pos);
+    out.set(src.subarray(off, off + len), pos);
+    pos += (len + 3) & ~3;
+  }
+  return out.buffer;
+}
+
+/** Parse a font file's bytes, unpacking a collection first. */
+function parseFontBytes(buffer: ArrayBuffer): OpentypeFont {
+  const tag = new DataView(buffer).getUint32(0);
+  const bytes = tag === 0x74746366 /* 'ttcf' */ ? fontFromCollection(buffer) : buffer;
+  return opentype.parse(bytes) as unknown as OpentypeFont;
 }
 
 /**
@@ -201,16 +261,18 @@ function loadFont(): OpentypeFont | null {
     // Priority 1: user-supplied buffer (the only path a browser can take,
     // via setTextFont)
     if (_userFontBuffer) {
-      _cachedFont = opentype.parse(_userFontBuffer) as unknown as OpentypeFont;
+      _cachedFontPath = null;
+      _cachedFont = parseFontBytes(_userFontBuffer);
       return _cachedFont;
     }
 
-    // Priority 2: Node.js system font search. `loadSync` reads the file
-    // through opentype.js's own lazy `require('fs')`, so it works in Node and
-    // throws in a browser -- where findFontNode has already returned null.
+    // Priority 2: Node.js system font search.
     const fontPath = findFontNode();
-    if (fontPath) {
-      _cachedFont = opentype.loadSync(fontPath) as unknown as OpentypeFont;
+    const fs = nodeBuiltin<typeof import('fs')>('fs');
+    if (fontPath && fs) {
+      const data = fs.readFileSync(fontPath);
+      _cachedFont = parseFontBytes(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer);
+      _cachedFontPath = fontPath;
       return _cachedFont;
     }
   } catch {
@@ -232,7 +294,8 @@ function loadFont(): OpentypeFont | null {
  * The text is rendered at `size` units height (ascender - descender = size),
  * centered horizontally and vertically about the workplane origin.
  *
- * Returns null if font loading fails (caller should fall back to placeholder).
+ * Returns null only when no font can be loaded; empty text (or only spaces)
+ * gives an empty list.
  */
 function textContourWires(
   oc: OC,
@@ -240,10 +303,18 @@ function textContourWires(
   size: number,
   plane: Pln,
 ): { contour: Contour; wire: Wire }[] | null {
-  if (!content) return null;
-
   const font = loadFont();
   if (!font) return null;
+  if (!content) return [];
+
+  // A character the font does not cover is drawn as its .notdef box, which
+  // looks like a glyph. Say so: a Latin-only font given Japanese text.
+  const missing = [...new Set([...content].filter(ch => ch.trim() !== '' && font.charToGlyphIndex(ch) === 0))];
+  if (missing.length > 0) {
+    pushWarning(`text: the font has no glyph for ${missing.map(c => `'${c}'`).join(' ')}; drawn as empty boxes`, {
+      hint: `install Noto Sans JP, which the CLI prefers${_cachedFontPath ? ` (now using ${_cachedFontPath})` : ''}`,
+    });
+  }
 
   // opentype.js getPath renders at fontSize where 1 em = unitsPerEm
   // We want ascender-descender = size (matching Python's freetype behaviour)
@@ -262,7 +333,7 @@ function textContourWires(
 
   // Build contours from path commands
   const contours = pathToContours(path.commands);
-  if (contours.length === 0) return null;
+  if (contours.length === 0) return [];
 
   // Centre: shift left by half total width, vertically by half (asc+desc)
   const shiftX = -totalWidth / 2;

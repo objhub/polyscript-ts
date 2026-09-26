@@ -18,7 +18,7 @@ import type { ParamInfo, ParamSet } from '@polyscript/core';
 import type { Profile } from '@polyscript/core';
 import type { DiagnosticCode } from '@polyscript/core';
 import { asDiagnosticCode } from '@polyscript/core';
-import { initOC, memoizeKernel } from '@polyscript/core/ocp-kernel';
+import { initOC, memoizeKernel, setTextFont } from '@polyscript/core/ocp-kernel';
 import {
   exportSTLBuffer,
   exportSTEPString,
@@ -94,6 +94,18 @@ export interface EngineOptions {
    *  nothing on a rebuild. On by default; pass false for one-shot use, or
    *  options to size the cache. */
   memoize?: boolean | KernelMemoOptions;
+  /** The font `text` draws with: a URL (fetched the first time a source
+   *  uses `text`, see {@link PolyScriptEngine.ensureFont}) or the font's
+   *  bytes. A browser has no system fonts to fall back on, so without one
+   *  `text` is an error. The worker passes the bundled Noto Sans JP; any
+   *  TrueType / OpenType file works (not WOFF2). */
+  font?: string | URL | ArrayBuffer;
+}
+
+/** Does the source draw text? A cheap test: `text` as a word. A false
+ *  positive only costs an early font download. */
+export function usesText(source: string): boolean {
+  return /\btext\b/.test(source);
 }
 
 export class PolyScriptEngine {
@@ -102,10 +114,36 @@ export class PolyScriptEngine {
   /** The kernel the evaluator sees: memoized when enabled. */
   private evalOc: OC;
 
-  private constructor(oc: OC, memo: KernelMemo | null) {
+  /** Where to get the font, and the load in flight or done. */
+  private font: string | URL | ArrayBuffer | undefined;
+  private fontLoad: Promise<void> | null = null;
+
+  private constructor(oc: OC, memo: KernelMemo | null, font?: string | URL | ArrayBuffer) {
     this.oc = oc;
     this.memo = memo;
     this.evalOc = memo?.oc ?? oc;
+    this.font = font;
+  }
+
+  /**
+   * Load the font before a build that draws text. `build()` is synchronous,
+   * so the fetch happens here: call it with the source first (the worker
+   * does). A source without `text` loads nothing -- the default font is a
+   * 9.6MB file. Loads once; later calls return the same promise.
+   */
+  ensureFont(source?: string): Promise<void> {
+    if (this.fontLoad) return this.fontLoad;
+    if (this.font === undefined || (source !== undefined && !usesText(source))) return Promise.resolve();
+    const font = this.font;
+    this.fontLoad = (async () => {
+      const bytes = font instanceof ArrayBuffer ? font : await (await fetch(font)).arrayBuffer();
+      setTextFont(bytes);
+      this.memo?.clear(); // a text drawn without the font must not be replayed
+    })().catch((e) => {
+      this.fontLoad = null; // let a later build retry
+      throw new Error(`text: could not load the font (${String(font)}): ${e instanceof Error ? e.message : String(e)}`);
+    });
+    return this.fontLoad;
   }
 
   /**
@@ -116,7 +154,7 @@ export class PolyScriptEngine {
     const oc = await initOC(options);
     const memoize = options?.memoize ?? true;
     const memo = memoize ? memoizeKernel(oc, memoize === true ? {} : memoize) : null;
-    return new PolyScriptEngine(oc, memo);
+    return new PolyScriptEngine(oc, memo, options?.font);
   }
 
   /** Drop every memoized kernel result. */

@@ -92,11 +92,11 @@ describe('textToWires', () => {
     resetFontCache();
   });
 
-  it('returns null for empty string', () => {
+  it('returns no wires for an empty string (null means no font)', () => {
     const oc = createMockOC();
     const plane = { origin: { x: 0, y: 0, z: 0 }, normal: { x: 0, y: 0, z: 1 }, xDir: { x: 1, y: 0, z: 0 }, yDir: { x: 0, y: 1, z: 0 } };
     const result = textToWires(oc, '', 10, plane);
-    expect(result).toBeNull();
+    expect(result).toEqual([]);
   });
 
   it.skipIf(!_hasFont)('single char produces wires', () => {

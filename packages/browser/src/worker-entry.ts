@@ -14,11 +14,17 @@ import type { ColorPart, ShapeInfo } from '@polyscript/core/ocp-kernel';
 
 let engine: PolyScriptEngine | null = null;
 
+/** Noto Sans JP, shipped in this package (fonts/, SIL OFL 1.1). The same
+ *  family the CLI prefers among system fonts, so text looks the same. */
+const DEFAULT_FONT_URL = new URL('../fonts/NotoSansJP-Regular.ttf', import.meta.url).href;
+
 export interface WorkerRequest {
   id: number;
   type: 'init' | 'build' | 'export';
   /** init */
   wasmUrl?: string;
+  /** init: the font `text` draws with. Default: the bundled Noto Sans JP. */
+  fontUrl?: string;
   /** build */
   code?: string;
   buildOptions?: { overrides?: Record<string, unknown>; imports?: Record<string, string> };
@@ -81,7 +87,12 @@ let lastColor: [number, number, number] | undefined;
 
 async function handleInit(req: WorkerRequest): Promise<WorkerResponse> {
   try {
-    engine = await PolyScriptEngine.init(req.wasmUrl ? { wasm: req.wasmUrl } : undefined);
+    engine = await PolyScriptEngine.init({
+      ...(req.wasmUrl ? { wasm: req.wasmUrl } : {}),
+      // Resolved by the bundler as an asset next to the worker, like the
+      // kernel's wasm; fetched only when a build uses `text`.
+      font: req.fontUrl ?? DEFAULT_FONT_URL,
+    });
     return { id: req.id, type: 'init', ok: true };
   } catch (e: any) {
     return { id: req.id, type: 'init', ok: false, error: e.message ?? String(e) };
@@ -310,7 +321,16 @@ ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {
       resp = await handleInit(req);
       break;
     case 'build':
-      resp = handleBuild(req);
+      try {
+        await engine?.ensureFont(req.code ?? '');
+        resp = handleBuild(req);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        resp = {
+          id: req.id, type: 'build', ok: false, error: message,
+          errors: [{ phase: 'evaluate', code: 'eval.error', message, hint: 'check that the font file is served next to the worker' }],
+        };
+      }
       break;
     case 'export':
       resp = handleExport(req);
