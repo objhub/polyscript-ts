@@ -42,6 +42,8 @@ export const DIAGNOSTIC_CODES = [
   'check.brep-invalid',
   'check.sweep-distorted',
   'param.unknown',
+  'param.type',
+  'param.commented',
   'io.read',
 ] as const;
 
@@ -291,6 +293,23 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
       + 'and the reported dimensions are not the ones asked for.',
     fix: 'Declare it with an @param annotation above the assignment:\n'
       + '  # @param 60..120 desc:"width (mm)"\n'
+      + '  width = 80',
+  },
+  'param.type': {
+    title: 'A -D value does not fit the parameter\'s declared type',
+    why: 'A value is only guessed from its text, so without this check\n'
+      + '`-D engrave=no` became the string "no", which counts as true: a bool\n'
+      + 'parameter meant as false was built as true, silently.',
+    fix: 'bool: exactly true or false (`-D engrave=true`). int / float: a number.\n'
+      + 'The type comes from the default value, or from @param type:"...".',
+  },
+  'param.commented': {
+    title: "'# @param' is a comment, not a parameter annotation",
+    why: 'The annotation is `@param ...` on its own line. With a `#` in front\n'
+      + 'the line is a comment: the variable below is an ordinary variable, the\n'
+      + 'GUI shows no control for it, and -D values are not type-checked.',
+    fix: 'Drop the `#`:\n'
+      + '  @param 60..120 desc:"width (mm)"\n'
       + '  width = 80',
   },
   'io.read': {

@@ -17,7 +17,7 @@ import {
   DIAGNOSTIC_CODES, asDiagnosticCode, fingerprint, runChecks,
 } from '@polyscript/core';
 import type { Value, Diagnostic, ValidationError, Program, EvalError } from '@polyscript/core';
-import { buildOverrides, unknownParams } from './params.js';
+import { buildOverrides, unknownParams, checkOverrideTypes, commentedParamLines } from './params.js';
 // package.json is the single source of truth for the version. The import
 // attribute is required by Node's and Deno's ESM loaders and permitted by
 // tsconfig's `module: NodeNext`; bun build --compile inlines it, so the
@@ -25,7 +25,7 @@ import { buildOverrides, unknownParams } from './params.js';
 import pkg from '../package.json' with { type: 'json' };
 
 const VERSION = pkg.version;
-export { parseCliValue, buildOverrides, unknownParams } from './params.js';
+export { parseCliValue, buildOverrides, unknownParams, checkOverrideTypes, commentedParamLines } from './params.js';
 
 const EXIT_OK = 0;
 const EXIT_IO = 1;
@@ -221,6 +221,19 @@ async function loadModel(file: string, opts: LoadOptions): Promise<LoadedModel> 
     console.error(msg);
     return process.exit(EXIT_IO) as never;
   });
+  if (Object.keys(overrides).length > 0) {
+    let declared: Array<{ name: string; type: 'int' | 'float' | 'string' | 'bool' }> = [];
+    try {
+      declared = extractParams(source).params;
+    } catch {
+      // a parse error is reported by the parse phase below
+    }
+    const typeErrors = checkOverrideTypes(opts.define ?? [], overrides, declared);
+    if (typeErrors.length > 0) {
+      fail('params', typeErrors.map(e => makeDiagnostic('param.type', 'error', e.message, { hint: e.hint })), EXIT_IO);
+    }
+  }
+  diagnostics.push(...commentedParamDiagnostics(source));
   for (const p of unknownParams(source, overrides, extractParams)) {
     diagnostics.push(makeDiagnostic('param.unknown', 'warning',
       `-D ${p}: no top-level assignment found in input`,
@@ -311,6 +324,13 @@ program
   .description('PolyScript — Parametric CAD DSL')
   .version(VERSION);
 
+/** `# @param` above an assignment: a comment, not an annotation. */
+function commentedParamDiagnostics(source: string): Diagnostic[] {
+  return commentedParamLines(source).map(line => makeDiagnostic('param.commented', 'warning',
+    "'# @param' is a comment, so the next variable is not a parameter",
+    { hint: "drop the '#': '@param 1..10 desc:\"...\"' on the line above the assignment", loc: { line, column: 1 } }));
+}
+
 // check subcommand
 program
   .command('check <file>')
@@ -330,7 +350,9 @@ program
         emit(asJson, { ok: false, phase: 'validate', file: name, diagnostics: diags }, []);
         process.exit(EXIT_SEMANTIC);
       }
-      emit(asJson, { ok: true, phase: 'validate', file: name, diagnostics: [] },
+      const warnings = commentedParamDiagnostics(source);
+      if (!asJson) printDiagnostics(warnings, name);
+      emit(asJson, { ok: true, phase: 'validate', file: name, diagnostics: warnings },
         [`✓ ${name}: OK`]);
       process.exit(EXIT_OK);
     } catch (e) {

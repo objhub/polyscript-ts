@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { writeFileSync, unlinkSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { parseCliValue, buildOverrides } from '../src/params.js';
+import { parseCliValue, buildOverrides, checkOverrideTypes, commentedParamLines } from '../src/params.js';
 
 const CLI = join(import.meta.dirname, '..', 'dist', 'index.js');
 
@@ -180,5 +180,48 @@ describe('CLI integration — -D and --params-file', () => {
       if (existsSync(outFile)) unlinkSync(outFile);
       unlinkSync(pf);
     }
+  });
+});
+
+describe('checkOverrideTypes: -D against the declared @param type', () => {
+  const params = [
+    { name: 'engrave', type: 'bool' as const },
+    { name: 'size', type: 'int' as const },
+    { name: 'name', type: 'string' as const },
+  ];
+  const check = (defs: string[]) => {
+    const o = buildOverrides(defs, undefined);
+    return { errors: checkOverrideTypes(defs, o, params), overrides: o };
+  };
+
+  it('a bool takes exactly true / false', () => {
+    expect(check(['engrave=true']).errors).toEqual([]);
+    expect(check(['engrave=false']).overrides.engrave).toBe(false);
+    for (const v of ['no', 'off', '1', '0', 'yes']) {
+      const [e] = check([`engrave=${v}`]).errors;
+      expect(e.message, v).toBe(`engrave is a bool parameter; got ${v}`);
+      expect(e.hint).toBe('use engrave=true or engrave=false');
+    }
+  });
+
+  it('a number rejects text', () => {
+    expect(check(['size=10']).errors).toEqual([]);
+    expect(check(['size=big']).errors.map(e => e.name)).toEqual(['size']);
+  });
+
+  it('a string keeps the -D text verbatim', () => {
+    expect(check(['name=007']).overrides.name).toBe('007');
+    expect(check(['name=true']).overrides.name).toBe('true');
+  });
+
+  it('undeclared names are left to unknownParams', () => {
+    expect(check(['other=no']).errors).toEqual([]);
+  });
+});
+
+describe('commentedParamLines', () => {
+  it('finds # @param above an assignment only', () => {
+    const src = '# @param 1..10\nw = 5\n@param 1..3\nh = 2\n# mentions @param in prose\n# @param note\n\nbox w h 1';
+    expect(commentedParamLines(src)).toEqual([1]);
   });
 });

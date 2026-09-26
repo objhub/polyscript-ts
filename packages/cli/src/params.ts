@@ -95,3 +95,70 @@ export function unknownParams(
   }
   return Object.keys(overrides).filter((name) => !known.has(name.replace(/^\$/, '')));
 }
+
+/** A -D / --params-file value that does not fit the declared parameter type. */
+export interface ParamTypeError {
+  name: string;
+  message: string;
+  hint: string;
+}
+
+/**
+ * Check overrides against the declared (@param) types, and fix up string
+ * parameters in place.
+ *
+ * parseCliValue guesses a type from the text alone, so `-D engrave=no` became
+ * the string "no" -- truthy -- and a bool parameter meant as false was built
+ * as true, silently; `-D name=007` became the number 7. With the declared
+ * type known:
+ *   - bool accepts exactly `true` / `false` (a JSON boolean from a file);
+ *   - int / float accept numbers only;
+ *   - string takes the -D text verbatim.
+ * Undeclared names are left alone (unknownParams reports them).
+ */
+export function checkOverrideTypes(
+  defines: string[],
+  overrides: Record<string, unknown>,
+  params: Array<{ name: string; type: 'int' | 'float' | 'string' | 'bool' }>,
+): ParamTypeError[] {
+  const raw = new Map<string, string>();
+  for (const def of defines) {
+    const eq = def.indexOf('=');
+    if (eq > 0) raw.set(def.slice(0, eq).trim().replace(/^\$/, ''), def.slice(eq + 1));
+  }
+  const errors: ParamTypeError[] = [];
+  for (const p of params) {
+    const name = p.name.replace(/^\$/, '');
+    if (!(name in overrides)) continue;
+    const value = overrides[name];
+    const shown = raw.get(name) ?? JSON.stringify(value);
+    if (p.type === 'string') {
+      if (raw.has(name)) overrides[name] = raw.get(name);
+      else if (typeof value !== 'string') overrides[name] = String(value);
+    } else if (p.type === 'bool') {
+      if (typeof value !== 'boolean') {
+        errors.push({ name, message: `${name} is a bool parameter; got ${shown}`, hint: `use ${name}=true or ${name}=false` });
+      }
+    } else if (typeof value !== 'number') {
+      errors.push({ name, message: `${name} is a number parameter (${p.type}); got ${shown}`, hint: `give a number, e.g. ${name}=10` });
+    }
+  }
+  return errors;
+}
+
+/**
+ * Lines written `# @param ...` directly above an assignment. The `#` makes
+ * the annotation a comment: the variable is not a declared parameter, so the
+ * GUI shows no control for it and -D gets no type check -- silently. The
+ * modeling skill itself used to teach this form.
+ */
+export function commentedParamLines(source: string): number[] {
+  const lines = source.split('\n');
+  const found: number[] = [];
+  lines.forEach((line, i) => {
+    if (!/^\s*#\s*@param\b/.test(line)) return;
+    const next = lines.slice(i + 1).find(l => l.trim() !== '' && !/^\s*#\s*@param\b/.test(l));
+    if (next !== undefined && /^\s*\$?[A-Za-z_][A-Za-z_0-9]*\s*=/.test(next)) found.push(i + 1);
+  });
+  return found;
+}
