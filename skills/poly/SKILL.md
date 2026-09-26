@@ -63,8 +63,9 @@ comment, so the variable is not a parameter -- no GUI control, no `-D` type
 check -- and `poly verify` warns `param.commented`. The type comes from the
 default value (`80` int, `2.5` float, `"..."` string, `true`/`false` bool);
 `-D engrave=true` overrides a bool, and anything but `true` / `false` is
-rejected (`param.type`). Branch on it with `if engrave then (...) else (...)`
--- shapes inside `if` need parentheses.
+rejected (`param.type`). Branch on it with `if engrave then text "A" 10 else circle 5`
+-- a branch may be a bare command, but a pipe inside a branch needs
+parentheses: `if engrave then (a | cut 1) else a`.
 
 A fixed set of options (`bolt` M3 / M4 / M5) is `@param choices:[...]`, a
 dropdown; `-D` then accepts only those values. `@profile { ... }` switches

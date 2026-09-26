@@ -25,6 +25,6 @@ whole reference (~10k tokens together). Tokens are approximate.
 | `pipe-operations-transform.md` | Pipe Operations > Transform | ~1700 | `mirror` reflects across the plane perpendicular to the specified axis. `"X"` mirrors across the YZ plane, ... |
 | `param-annotation.md` | @param Annotation (Basic syntax, Range shorthand, Option reference, Choices (dropdown), Practical example, CLI Override) | ~700 | Adding `@param` to a variable turns it into a parameter that can be controlled via a GUI customizer as a sl... |
 | `profile-annotation.md` | @profile Annotation | ~300 | Defines **presets** that switch several top-level variables at once; the GUI customizer shows them as a "Pr... |
-| `expressions.md` | Expressions (Arithmetic, Comparison and Logic, Conditional, List Comprehension, Math Functions, Tuples and Lists) | ~500 | `if`/`then`/`else` is an expression, so it can be used inline: |
+| `expressions.md` | Expressions (Arithmetic, Comparison and Logic, Conditional, List Comprehension, Math Functions, Tuples and Lists) | ~600 | `if`/`then`/`else` is an expression, so it can be used inline: |
 | `boolean-operations-source-commands.md` | Boolean Operations (Source Commands) | ~200 | `union`, `diff`, and `inter` can be used as source commands (without a pipe) to combine multiple shapes: |
 | `placement.md` | Placement | ~300 | `at:` is a named argument that places a shape at the specified position. Write it with a colon `:` immediat... |

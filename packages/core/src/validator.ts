@@ -160,6 +160,13 @@ function sourceContext(expr: Expression): Context | null {
       return 'Workplane';
     case 'Pipeline':
       return pipelineResultContext(expr);
+    case 'IfExpr': {
+      // `if c then circle 10 else rect 20 15 | extrude 5`: the pipe applies
+      // to whichever branch runs, so the context is known only when both agree.
+      const a = sourceContext(expr.thenExpr);
+      const b = sourceContext(expr.elseExpr);
+      return a !== null && a === b ? a : null;
+    }
     case 'FuncCall':
     case 'VarRef':
       // Can't statically determine — return null to skip validation

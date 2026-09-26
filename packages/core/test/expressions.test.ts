@@ -574,6 +574,96 @@ box 10 10 10`);
       }
     });
 
+    // if-then-else branches take commands without parentheses (SPEC §条件式)
+    describe('if-then-else with command branches', () => {
+      function ifOf(source: string): Expression {
+        const stmt = parseFirst(source);
+        const e = stmt.type === 'Assignment' ? stmt.value : stmt as Expression;
+        return e;
+      }
+
+      it('2D commands in both branches', () => {
+        const e = ifOf('shape = if true then circle 10 else rect 20 15');
+        expect(e.type).toBe('IfExpr');
+        if (e.type === 'IfExpr') {
+          expect(e.thenExpr).toMatchObject({ type: 'CircleExpr', args: [{ value: 10 }] });
+          expect(e.elseExpr).toMatchObject({ type: 'RectExpr', args: [{ value: 20 }, { value: 15 }] });
+        }
+      });
+
+      it('3D commands with several args', () => {
+        const e = ifOf('shape = if r then cylinder 15 8 else box 30 30 8');
+        expect(e).toMatchObject({ type: 'IfExpr', thenExpr: { type: 'CylinderExpr' }, elseExpr: { type: 'BoxExpr' } });
+      });
+
+      it('a parenthesised if with command branches', () => {
+        expect(ifOf('(if r then cylinder 15 8 else box 30 30 8)').type).toBe('IfExpr');
+      });
+
+      it('a pipe after a parenthesised if applies to the if', () => {
+        const e = ifOf('(if r then cylinder 15 8 else box 30 30 8) | floor');
+        expect(e).toMatchObject({ type: 'Pipeline', source: { type: 'IfExpr' } });
+      });
+
+      it('parenthesised pipelines inside the branches', () => {
+        const e = ifOf('if r then (cylinder 15 8 | floor) else (box 30 30 8 | floor)');
+        expect(e).toMatchObject({ type: 'IfExpr', thenExpr: { type: 'Pipeline' }, elseExpr: { type: 'Pipeline' } });
+      });
+
+      it('a bare pipe inside the then branch is an error', () => {
+        expect(() => parse('if a then box 1 1 1 | floor else box 2 2 2')).toThrow();
+      });
+
+      it('a pipe after the else branch applies to the whole if', () => {
+        const e = ifOf('x = if a then box 1 1 1 else box 2 2 2 | floor');
+        expect(e).toMatchObject({
+          type: 'Pipeline',
+          source: { type: 'IfExpr', elseExpr: { type: 'BoxExpr' } },
+          ops: [{ type: 'Floor' }],
+        });
+      });
+
+      it('an if in argument position needs parentheses', () => {
+        expect(ifOf('box 10 10 (if a then 5 else 3)')).toMatchObject({
+          type: 'BoxExpr', args: [{ value: 10 }, { value: 10 }, { type: 'IfExpr' }],
+        });
+        // A bare `if` is not a greedy arg: it ends the box's argument list.
+        const bare = parse('box 10 10 if a then 5 else 3').statements[0];
+        expect(bare).toMatchObject({ type: 'BoxExpr', args: [{ value: 10 }, { value: 10 }] });
+      });
+
+      it('else-if chains, numeric and with commands', () => {
+        expect(ifOf('d = if a then 3 else if b then 4.5 else 5.5'))
+          .toMatchObject({ type: 'IfExpr', elseExpr: { type: 'IfExpr' } });
+        expect(ifOf('shape = if a then circle 10 else if b then rect 20 15 else box 10 10 10'))
+          .toMatchObject({
+            type: 'IfExpr', thenExpr: { type: 'CircleExpr' },
+            elseExpr: { type: 'IfExpr', thenExpr: { type: 'RectExpr' }, elseExpr: { type: 'BoxExpr' } },
+          });
+      });
+
+      it('numbers, variables and arithmetic are unchanged', () => {
+        expect(ifOf('thickness = if use_thick then 3 else 1.5'))
+          .toMatchObject({ type: 'IfExpr', thenExpr: { type: 'NumberLit' }, elseExpr: { type: 'NumberLit' } });
+        expect(ifOf('shape = if a then my_var else other_var'))
+          .toMatchObject({ type: 'IfExpr', thenExpr: { type: 'VarRef' }, elseExpr: { type: 'VarRef' } });
+        expect(ifOf('x = if a then 10 + 5 else 3 * 2'))
+          .toMatchObject({ type: 'IfExpr', thenExpr: { type: 'BinOp' }, elseExpr: { type: 'BinOp' } });
+        expect(ifOf('x = if a then f(2) else 1'))
+          .toMatchObject({ type: 'IfExpr', thenExpr: { type: 'FuncCall', name: 'f' } });
+      });
+
+      it('user functions called greedily', () => {
+        expect(ifOf('shape = if a then my_shape 10 else my_shape 20'))
+          .toMatchObject({ type: 'IfExpr', thenExpr: { type: 'FuncCall', name: 'my_shape' }, elseExpr: { type: 'FuncCall' } });
+      });
+
+      it('named args inside a branch stop at else', () => {
+        const e = ifOf('if true then box 10 10 10 at:5 0 else box 20 20 20');
+        expect(e).toMatchObject({ type: 'IfExpr', thenExpr: { type: 'BoxExpr', namedArgs: [{ key: 'at' }] }, elseExpr: { type: 'BoxExpr' } });
+      });
+    });
+
     // Text size: kwarg parser
     it('parses text with size: kwarg', () => {
       const stmt = parseFirst('text "M8" size:10');

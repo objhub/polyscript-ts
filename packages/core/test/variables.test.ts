@@ -354,6 +354,15 @@ box $size $size $height`);
       const errors = getErrors('$x = box 10 10 10 | fillet 2');
       expect(errors).toHaveLength(0);
     });
+
+    it('an if source takes the context its branches share', () => {
+      // both Face: extrude is legal
+      expect(getErrors('if $r then circle 10 else rect 20 15 | extrude 5')).toHaveLength(0);
+      // both 3D: extrude is rejected
+      expect(getErrors('if $r then box 1 1 1 else cylinder 1 1 | extrude 5').length).toBeGreaterThan(0);
+      // branches disagree: unknown, so nothing is rejected statically
+      expect(getErrors('if $r then circle 10 else box 1 1 1 | extrude 5')).toHaveLength(0);
+    });
   });
 
   // ===========================================================================

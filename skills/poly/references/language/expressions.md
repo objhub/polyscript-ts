@@ -34,6 +34,16 @@ $shape = if $use_round then circle 10 else rect 20 15
 $shape | extrude 5
 ```
 
+A branch can be a shape command without parentheses. A pipe cannot sit inside a
+branch: `|` binds loosest, so a `|` after the expression applies to the result of
+the whole `if`. To pipe inside a branch, wrap it in parentheses:
+
+```
+if $use_round then circle 10 else rect 20 15 | extrude 5    # extrudes either one
+if $flag then (circle 10 | extrude 5) else (rect 20 15 | extrude 3)
+box 40 30 (if $deep then 20 else 10)                         # an if as an argument needs parentheses
+```
+
 ### List Comprehension
 
 ```

@@ -1094,12 +1094,31 @@ export class Parser {
       this.advance();
       const condition = this.parseOrExpr();
       this.expect(TokenType.Keyword, 'then');
-      const thenExpr = this.parseIfExpr();
+      const thenExpr = this.parseIfBranch();
       this.expect(TokenType.Keyword, 'else');
-      const elseExpr = this.parseIfExpr();
+      const elseExpr = this.parseIfBranch();
       return { type: 'IfExpr', condition, thenExpr, elseExpr, loc: this.loc(startToken) };
     }
     return this.parseOrExpr();
+  }
+
+  /**
+   * One branch of `if … then … else …`:
+   *   if_branch = source_cmd greedy_args | NAME greedy_arg+ | if_expr
+   * so `if round then circle 10 else rect 20 15` needs no parentheses.
+   * A pipe is not part of a branch: greedy args stop at `else`, and a `|`
+   * after the whole expression applies to its result, because `|` binds
+   * loosest. A pipe inside a branch needs parentheses: `then (c | op)`.
+   */
+  private parseIfBranch(): Expression {
+    if (this.isSourceCommand()) {
+      return this.parseSourceExpr();
+    }
+    if (this.match(TokenType.Identifier) && this.peek(1).type !== TokenType.LParen
+        && this.canStartFuncCallArg()) {
+      return this.parseFuncCallGreedy();
+    }
+    return this.parseIfExpr();
   }
 
   private parseOrExpr(): Expression {
