@@ -16,7 +16,7 @@ let engine: PolyScriptEngine | null = null;
 
 /** Noto Sans JP, shipped in this package (fonts/, SIL OFL 1.1). The same
  *  family the CLI prefers among system fonts, so text looks the same. */
-const DEFAULT_FONT_URL = new URL('../fonts/NotoSansJP-Regular.ttf', import.meta.url).href;
+const DEFAULT_FONT_URL = new URL('../fonts/NotoSansJP-Regular.otf', import.meta.url).href;
 
 export interface WorkerRequest {
   id: number;

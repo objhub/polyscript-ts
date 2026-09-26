@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { resetFontCache } from '@polyscript/core/ocp-kernel';
 import { PolyScriptEngine, usesText } from '../src/index.js';
 
-const FONT = new URL('../fonts/NotoSansJP-Regular.ttf', import.meta.url);
+const FONT = new URL('../fonts/NotoSansJP-Regular.otf', import.meta.url);
 
 afterAll(() => resetFontCache());
 

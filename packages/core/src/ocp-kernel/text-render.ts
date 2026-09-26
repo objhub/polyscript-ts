@@ -33,6 +33,7 @@ interface OpentypeFont {
   descender: number;
   unitsPerEm: number;
   charToGlyphIndex(ch: string): number;
+  tables?: { fvar?: unknown };
   getPath(text: string, x: number, y: number, fontSize: number): OpentypePath;
   getAdvanceWidth(text: string, fontSize: number): number;
 }
@@ -68,6 +69,9 @@ let _userFontBuffer: ArrayBuffer | null = null;
 /** Cached parsed Font object. */
 let _cachedFont: OpentypeFont | null | undefined; // undefined = not yet attempted
 
+/** The variable-font warning is given once per loaded font. */
+let _warnedVariable = false;
+
 /** Where the cached font came from (a file path in Node, null for a buffer). */
 let _cachedFontPath: string | null = null;
 
@@ -82,6 +86,7 @@ export function textFontPath(): string | null {
  */
 export function setTextFont(buffer: ArrayBuffer): void {
   _userFontBuffer = buffer;
+  _warnedVariable = false;
   _cachedFont = undefined; // reset cache so next call re-parses
 }
 
@@ -92,6 +97,7 @@ export function resetFontCache(): void {
   _cachedFont = undefined;
   _cachedFontPath = null;
   _userFontBuffer = null;
+  _warnedVariable = false;
 }
 
 /**
@@ -103,10 +109,8 @@ export function resetFontCache(): void {
  * TODO: let the user choose the font (a CLI option / @font annotation).
  */
 const PREFERRED_FONTS = [
-  'NotoSansJP-Regular.ttf',
   'NotoSansJP-Regular.otf',
-  'NotoSansJP[wght].ttf',
-  'NotoSansJP-VariableFont_wght.ttf',
+  'NotoSansJP-Regular.ttf',
   'NotoSansCJKjp-Regular.otf',
   'NotoSansCJK-Regular.ttc',
   'DejaVuSans.ttf',
@@ -126,14 +130,14 @@ const SEARCH_DIRS = [
 ];
 
 /**
- * Search the filesystem for a font file (Node.js only): the first of
- * PREFERRED_FONTS that exists anywhere under the font directories, else the
- * first .ttf / .otf found. Returns the path or null.
+ * Search the filesystem for font files (Node.js only): those of
+ * PREFERRED_FONTS that exist anywhere under the font directories, in
+ * priority order, then the first .ttf / .otf found.
  */
-function findFontNode(): string | null {
+function findFontCandidates(): string[] {
   const fs = nodeBuiltin<typeof import('fs')>('fs');
   const path = nodeBuiltin<typeof import('path')>('path');
-  if (!fs || !path) return null;
+  if (!fs || !path) return [];
   const homeDir = process.env.HOME || process.env.USERPROFILE || '';
   const dirs = [...SEARCH_DIRS];
   if (homeDir) {
@@ -168,11 +172,13 @@ function findFontNode(): string | null {
   };
   for (const dir of dirs) walk(dir, 0);
 
+  const out: string[] = [];
   for (const name of PREFERRED_FONTS) {
     const found = byName.get(name.toLowerCase());
-    if (found) return found;
+    if (found) out.push(found);
   }
-  return firstAny;
+  if (firstAny && !out.includes(firstAny)) out.push(firstAny);
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -242,6 +248,11 @@ export function fontFromCollection(buffer: ArrayBuffer, prefer: RegExp = /\bJP\b
   return out.buffer;
 }
 
+/** A variable font (an `fvar` table). */
+function isVariable(font: OpentypeFont): boolean {
+  return !!font.tables?.fvar;
+}
+
 /** Parse a font file's bytes, unpacking a collection first. */
 function parseFontBytes(buffer: ArrayBuffer): OpentypeFont {
   const tag = new DataView(buffer).getUint32(0);
@@ -266,13 +277,31 @@ function loadFont(): OpentypeFont | null {
       return _cachedFont;
     }
 
-    // Priority 2: Node.js system font search.
-    const fontPath = findFontNode();
+    // Priority 2: Node.js system font search. A variable font is passed
+    // over while a static one remains: opentype.js 1.x draws only its
+    // default instance (often the Thin master) and its overlapping contours
+    // break the nesting below.
     const fs = nodeBuiltin<typeof import('fs')>('fs');
-    if (fontPath && fs) {
-      const data = fs.readFileSync(fontPath);
-      _cachedFont = parseFontBytes(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer);
+    let variable: { font: OpentypeFont; path: string } | null = null;
+    for (const fontPath of fs ? findFontCandidates() : []) {
+      let font: OpentypeFont;
+      try {
+        const data = fs!.readFileSync(fontPath);
+        font = parseFontBytes(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer);
+      } catch {
+        continue; // unreadable or unparsable: try the next
+      }
+      if (isVariable(font)) {
+        variable ??= { font, path: fontPath };
+        continue;
+      }
+      _cachedFont = font;
       _cachedFontPath = fontPath;
+      return _cachedFont;
+    }
+    if (variable) {
+      _cachedFont = variable.font;
+      _cachedFontPath = variable.path;
       return _cachedFont;
     }
   } catch {
@@ -306,6 +335,15 @@ function textContourWires(
   const font = loadFont();
   if (!font) return null;
   if (!content) return [];
+
+  if (isVariable(font) && !_warnedVariable) {
+    _warnedVariable = true;
+    pushWarning('text: the font is a variable font; only its default instance is drawn '
+      + '(often the thinnest weight), and overlapping contours can lose parts of letters', {
+      hint: 'use a static font file (Noto Sans JP Regular .otf)'
+        + (_cachedFontPath ? ` instead of ${_cachedFontPath}` : ''),
+    });
+  }
 
   // A character the font does not cover is drawn as its .notdef box, which
   // looks like a glyph. Say so: a Latin-only font given Japanese text.

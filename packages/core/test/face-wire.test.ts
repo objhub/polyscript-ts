@@ -117,7 +117,7 @@ describe('Face / Wire: text glyph counters are holes', () => {
   // Japanese font, and a missing "回" is drawn as its .notdef box -- one
   // region -- which is how this test once passed for the wrong reason.
   beforeAll(() => {
-    const b = readFileSync(new URL('../../browser/fonts/NotoSansJP-Regular.ttf', import.meta.url));
+    const b = readFileSync(new URL('../../browser/fonts/NotoSansJP-Regular.otf', import.meta.url));
     setTextFont(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer);
   });
   afterAll(() => resetFontCache());
@@ -126,6 +126,14 @@ describe('Face / Wire: text glyph counters are holes', () => {
     const o = volume('text "O" 20 | extrude 2');
     expect(o).toBeLessThan(200);
     expect(volume('text "O" 20 | extrude 2 | diff (cylinder 1 2)')).toBeCloseTo(o, 6);
+  });
+
+  it('"A" is one region with its counter as the one hole', () => {
+    // With a variable font (overlapping contours) "A" came out as its
+    // crossbar alone, and the counter test below still passed.
+    const a = run('text "A" 20');
+    expect(a.faces).toHaveLength(1);
+    expect(oc.getSubShapes(a.faces[0], 'wire')).toHaveLength(2);
   });
 
   it('"8" is valid and "回" is a ring plus its island', () => {
