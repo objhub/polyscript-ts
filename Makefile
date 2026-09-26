@@ -44,7 +44,7 @@ TARGETS = linux-x86_64 macos-arm64 windows-x86_64
 # of make build/test for four months (see devel/TODO.md 2026-08-26).
 TEST_PKGS = $(patsubst %/package.json,%,$(shell grep -l '"test"' packages/*/package.json))
 
-.PHONY: build test test-node fulltest lint example binary binary-all binary-test \
+.PHONY: build test test-node fulltest lint gen gen-check example binary binary-all binary-test \
         binary-deno release-check release release-publish
 
 build:
@@ -83,8 +83,26 @@ test-node: build
 fulltest:
 	cd packages/core && EXAMPLE=1 $(BUN) x vitest run -t "B-Rep regression" --reporter=verbose
 
-lint:
+lint: gen-check
 	pnpm lint
+
+# The two generated files, checked rather than rebuilt: a stale one means
+# somebody edited a source and did not regenerate, and the build should say so
+# rather than quietly paper over it.
+#
+#   skills/poly/{references,locales}/ <- docs/content/**  (needs ../docs)
+#   skill-data.ts                     <- skills/poly/**   (shipped in the binary)
+gen-check:
+	$(BUN) scripts/gen-skill-data.ts --check
+	@if [ -d ../docs ]; then \
+		$(BUN) scripts/gen-skill-docs.ts --check; \
+	else \
+		echo "skip docs cheatsheet check: ../docs not present"; \
+	fi
+
+gen:
+	$(BUN) scripts/gen-skill-docs.ts
+	$(BUN) scripts/gen-skill-data.ts
 
 example: build
 	@mkdir -p $(OUTDIR)

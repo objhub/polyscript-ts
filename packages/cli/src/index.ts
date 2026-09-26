@@ -727,6 +727,70 @@ program
   });
 
 program
+  .command('skill <action>')
+  .description(
+    'Install the modelling skill for an AI coding agent, so it can write and '
+    + 'verify PolyScript. Actions: install, list',
+  )
+  .option(
+    '--target <name>',
+    'Which agent\'s directory to write: claude (.claude/skills, also read by '
+    + 'Copilot), codex (.agents/skills, also read by Copilot), copilot '
+    + '(.github/skills)',
+    'claude',
+  )
+  .option('--global', 'Install for every project, not just this one')
+  .option(
+    '--locale <lang>',
+    'Language for the vocabulary the agent maps a request through '
+    + '(default: from $LANG, else en)',
+  )
+  .action(async (action: string, opts: { target: string; global?: boolean; locale?: string }) => {
+    const { install, list, locales, defaultLocale } = await import('./skill.js');
+
+    if (action === 'list') {
+      const found = list(process.cwd());
+      if (found.length === 0) {
+        console.log('No skill installed here. Run: poly skill install');
+        return;
+      }
+      for (const e of found) {
+        console.log(`${e.current ? 'ok    ' : 'STALE '} ${e.version.padEnd(8)} ${e.path}`);
+      }
+      if (found.some((e) => !e.current)) {
+        console.log(`\nThis poly is ${VERSION}. Re-run \`poly skill install\` to update.`);
+        process.exit(EXIT_SEMANTIC);
+      }
+      return;
+    }
+
+    if (action !== 'install') {
+      console.error(`Unknown action '${action}'. Expected: install, list`);
+      process.exit(EXIT_IO);
+    }
+
+    const targets = ['claude', 'codex', 'copilot'] as const;
+    type Target = (typeof targets)[number];
+    if (!targets.includes(opts.target as Target)) {
+      console.error(`Unknown target '${opts.target}'. Expected: ${targets.join(', ')}`);
+      process.exit(EXIT_IO);
+    }
+
+    const locale = opts.locale ?? defaultLocale();
+    if (!locales().includes(locale)) {
+      console.error(`No vocabulary for '${locale}'. Carried: ${locales().join(', ')}`);
+      process.exit(EXIT_IO);
+    }
+
+    const res = install(opts.target as Target, !!opts.global, process.cwd(), locale);
+    console.log(`${res.files.length} files (vocabulary: ${res.locale}) -> ${res.root}`);
+    if (res.alsoRead.length > 0) {
+      console.log(`Also read by: ${res.alsoRead.join(', ')}`);
+    }
+    console.log(`\nThe agent finds these on its own. Nothing else to configure.`);
+  });
+
+program
   .command('section <file>')
   .description('Cut the model with a plane and report the contours (mm)')
   .option(

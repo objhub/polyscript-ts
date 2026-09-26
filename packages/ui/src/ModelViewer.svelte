@@ -210,7 +210,15 @@
 		return new THREE.LineBasicMaterial({ color: 0x000000 });
 	}
 
-	function loadFromMeshData(data: MeshData) {
+	/**
+	 * A Three.js object standing in for one build's result.
+	 *
+	 * Split out from `loadFromMeshData` so a thumbnail can be taken of a mesh
+	 * that is not the one on screen -- the editor renders the listing picture
+	 * from a build at the model's default parameters while the author keeps
+	 * looking at whatever they were trying.
+	 */
+	function buildObject3D(data: MeshData): THREE.Object3D {
 		const parts = data.parts ?? [];
 		const hasFaces = parts.length > 0 || (data.positions.length > 0 && data.indices.length > 0);
 		const hasLines = data.lines && data.lines.positions.length > 0 && data.lines.indices.length > 0;
@@ -273,8 +281,23 @@
 			mesh.add(wireLines);
 		}
 
-		loadMesh(mesh);
+		return mesh;
+	}
+
+	function loadFromMeshData(data: MeshData) {
+		loadMesh(buildObject3D(data));
 		applyEdgeOnly();
+	}
+
+	/** Release what `buildObject3D` allocated. Nothing else holds it. */
+	function disposeObject3D(root: THREE.Object3D) {
+		root.traverse((child) => {
+			const any = child as THREE.Mesh | THREE.LineSegments;
+			any.geometry?.dispose();
+			const mat = any.material;
+			if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+			else mat?.dispose();
+		});
 	}
 
 	function loadFromUrl(glbUrl: string) {
@@ -458,14 +481,28 @@ ${lines}</g>
 	 * here, which is why the listing stopped using live viewers in the first
 	 * place.
 	 */
-	export async function renderThumbnail(width = 800, height = 600): Promise<Blob> {
-		if (!renderer || !scene || !currentMesh) {
+	export async function renderThumbnail(
+		data?: MeshData | null,
+		width = 800,
+		height = 600
+	): Promise<Blob> {
+		if (!renderer || !scene) {
+			throw new Error('Renderer not ready');
+		}
+
+		// A mesh of its own, or the one on screen. The first is how the editor
+		// gets a listing picture of the model at its default parameters
+		// without disturbing the view the author is working in.
+		const temp = data ? buildObject3D(data) : null;
+		if (temp) scene.add(temp);
+		const subject = temp ?? currentMesh;
+		if (!subject) {
 			throw new Error('Nothing to render');
 		}
 
 		const cam = new THREE.PerspectiveCamera(50, width / height, 0.1, 10000);
 		cam.up.set(0, 0, 1);
-		const { position, target } = isoView(currentMesh);
+		const { position, target } = isoView(subject);
 		cam.position.copy(position);
 		cam.lookAt(target);
 
@@ -473,6 +510,10 @@ ${lines}</g>
 		const axisWas = axisHelper?.visible ?? false;
 		if (gridHelper) gridHelper.visible = false;
 		if (axisHelper) axisHelper.visible = false;
+		// The live model would otherwise sit in the shot beside the temporary
+		// one, at whatever parameters it was last built with.
+		const meshWas = currentMesh?.visible ?? false;
+		if (temp && currentMesh) currentMesh.visible = false;
 
 		const rt = new THREE.WebGLRenderTarget(width, height, {
 			// The default is nearest; a listing shows these scaled down.
@@ -508,6 +549,11 @@ ${lines}</g>
 			rt.dispose();
 			if (gridHelper) gridHelper.visible = gridWas;
 			if (axisHelper) axisHelper.visible = axisWas;
+			if (currentMesh) currentMesh.visible = meshWas;
+			if (temp) {
+				scene.remove(temp);
+				disposeObject3D(temp);
+			}
 		}
 	}
 
