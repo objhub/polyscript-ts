@@ -13,7 +13,7 @@ import { basename, dirname, resolve, extname, relative } from 'node:path';
 import { Command } from 'commander';
 import {
   parse, ParseError, validate, evaluate, resultShape, resultColorParts,
-  extractParams, Trace, drainDiagnostics, makeDiagnostic, formatDiagnostic, explain,
+  extractParams, unknownParamOptions, PARAM_OPTIONS, Trace, drainDiagnostics, makeDiagnostic, formatDiagnostic, explain,
   DIAGNOSTIC_CODES, asDiagnosticCode, fingerprint, runChecks,
 } from '@polyscript/core';
 import type { Value, Diagnostic, ValidationError, Program, EvalError } from '@polyscript/core';
@@ -324,11 +324,24 @@ program
   .description('PolyScript — Parametric CAD DSL')
   .version(VERSION);
 
-/** `# @param` above an assignment: a comment, not an annotation. */
+/** `# @param` above an assignment (a comment, not an annotation), and
+ *  @param option keys the annotation does not have. */
 function commentedParamDiagnostics(source: string): Diagnostic[] {
-  return commentedParamLines(source).map(line => makeDiagnostic('param.commented', 'warning',
+  const out = commentedParamLines(source).map(line => makeDiagnostic('param.commented', 'warning',
     "'# @param' is a comment, so the next variable is not a parameter",
     { hint: "drop the '#': '@param 1..10 desc:\"...\"' on the line above the assignment", loc: { line, column: 1 } }));
+  let unknown: { key: string; line: number }[] = [];
+  try {
+    unknown = unknownParamOptions(source);
+  } catch {
+    // a parse error is reported by the parse phase
+  }
+  for (const u of unknown) {
+    out.push(makeDiagnostic('param.unknown-option', 'warning',
+      `@param has no option '${u.key}'; it is ignored`,
+      { hint: `options: ${PARAM_OPTIONS.join(' ')}`, loc: { line: u.line, column: 1 } }));
+  }
+  return out;
 }
 
 // check subcommand

@@ -66,6 +66,12 @@ default value (`80` int, `2.5` float, `"..."` string, `true`/`false` bool);
 rejected (`param.type`). Branch on it with `if engrave then (...) else (...)`
 -- shapes inside `if` need parentheses.
 
+A fixed set of options (`bolt` M3 / M4 / M5) is `@param choices:[...]`, a
+dropdown; `-D` then accepts only those values. `@profile { ... }` switches
+several parameters at once. Every option (`min max step label desc choices
+group type hidden`) and the built-in functions are in
+`references/cheatsheet.md`; a misspelt option warns `param.unknown-option`.
+
 Consult `references/cheatsheet.md` for syntax and `references/recipes.md` for
 the standard shapes (enclosure, boss, rib, drainage grid, revolved vessel).
 `references/vocabulary.md` maps the words of the request to operations.

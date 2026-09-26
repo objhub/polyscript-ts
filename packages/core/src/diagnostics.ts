@@ -44,6 +44,7 @@ export const DIAGNOSTIC_CODES = [
   'param.unknown',
   'param.type',
   'param.commented',
+  'param.unknown-option',
   'io.read',
 ] as const;
 
@@ -311,6 +312,14 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
     fix: 'Drop the `#`:\n'
       + '  @param 60..120 desc:"width (mm)"\n'
       + '  width = 80',
+  },
+  'param.unknown-option': {
+    title: 'An @param option the annotation does not have',
+    why: 'Any key:value parses, so a misspelt option is dropped without a word:\n'
+      + '`choice:[...]` for `choices:[...]` shows no dropdown and takes any -D.',
+    fix: 'The options are min max step label desc choices group type hidden:\n'
+      + '  @param choices:["M3", "M4", "M5"] desc:"bolt size"\n'
+      + '  bolt = "M4"',
   },
   'io.read': {
     title: 'The file could not be read',

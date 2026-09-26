@@ -273,11 +273,68 @@ if $x > 0 then $x else -$x
 [$i * 10 for $i in range(6)]
 ```
 
+### 組み込み関数
+
+角度はすべて**度**。これらの名前で `def` は作れない（`def.shadows-builtin`）。
+
+| 関数 | 意味 |
+|---|---|
+| `sin(a)` `cos(a)` `tan(a)` | 三角関数（引数は度） |
+| `asin(x)` `acos(x)` `atan(x)` `atan2(y, x)` | 逆三角関数（結果は度） |
+| `sqrt(x)` `abs(x)` | 平方根、絶対値 |
+| `floor(x)` `ceil(x)` `round(x)` | 切り捨て、切り上げ、四捨五入 |
+| `min(a, b, ...)` `max(a, b, ...)` | 最小、最大（1個以上） |
+| `radians(d)` / `rad(d)`、`degrees(r)` / `deg(r)` | 度とラジアンの変換 |
+| `len(list)` | リストの長さ |
+| `range(n)` / `range(a, b)` / `range(a, b, step)` | 整数のリスト（`b` は含まない） |
+| `pi` | 円周率（定数） |
+
 ### 演算子（優先順位 高→低）
 
 `**` → `*` `/` `//` `%` → `+` `-` → 比較 → `and` → `or` → `|`
 
 ---
+
+## パラメータ（`@param` / `@profile`）
+
+変数宣言の直前の行に `@param` を書くと、GUIカスタマイザーで操作できるパラメータになる。**先頭に `#` を付けない**（`# @param` はただのコメントで、`poly verify` が `param.commented` を警告する）。
+
+```
+@param 60..120 step:5 desc:"幅 (mm)" group:"寸法"
+width = 80
+@param choices:["M3", "M4", "M5"] desc:"ねじ"
+bolt = "M4"
+@param desc:"通気穴を付ける"
+vents = true
+```
+
+| オプション | 値 | 意味 |
+|---|---|---|
+| `min` / `max` | 数値 | 範囲（スライダー）。`1..100` は `min:1 max:100`、`1..100..0.5` は `step:0.5` も含む |
+| `step` | 数値 | スライダーの刻み |
+| `desc` | 文字列 | 説明（ツールチップ） |
+| `label` | 文字列 | 表示名（省略時は変数名） |
+| `choices` | リスト | 選択肢（ドロップダウン） |
+| `group` | 文字列 | GUIのグループ（既定 `"General"`） |
+| `type` | `"int"` `"float"` `"string"` `"bool"` | 型。省略時は既定値から推論 |
+| `hidden` | `true` / `false` | GUIに表示しない |
+
+型は既定値から決まる: `80` → int、`2.5` → float、`"M4"` → string、`true`/`false` → bool（チェックボックス）。表にないキーは無視され、`poly verify` が `param.unknown-option` を警告する。
+
+`choices` の値は条件式で寸法に対応させる:
+
+```
+$d = if bolt == "M3" then 3.4 else if bolt == "M4" then 4.5 else 5.5
+```
+
+`@profile` は複数の変数を一括で切り替えるプリセット（GUIのドロップダウン）。1ファイルに1つ:
+
+```
+@profile {
+  "S": { width: 60, bolt: "M3" },
+  "L": { width: 120, bolt: "M5" }
+}
+```
 
 ## CLI
 
@@ -293,7 +350,7 @@ if $x > 0 then $x else -$x
 | `--params-file file` | JSON からパラメータを読み込み | `poly build m.poly --params-file p.json` |
 | `--mesh-deflection val` | STL/glTF のメッシュ精度（既定0.1、大きいほど粗い） | `poly build m.poly --mesh-deflection 0.05` |
 
-`-D` の型推論: `100` → int, `1.5` → float, `true`/`false` → bool, その他 → string
+`-D` の値は `@param` の型で検査する: bool は `true`/`false` のみ、数値は数値のみ、`choices` は選択肢のいずれか。外れると `param.type` エラー（終了コード1）。文字列はそのまま渡る（`-D name=007` は `"007"`）
 
 `-D` と `--params-file` を併用すると `-D` が優先。優先順位: `-D` > `--params-file` > `@param` デフォルト値
 

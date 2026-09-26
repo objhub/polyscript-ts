@@ -119,7 +119,7 @@ export interface ParamTypeError {
 export function checkOverrideTypes(
   defines: string[],
   overrides: Record<string, unknown>,
-  params: Array<{ name: string; type: 'int' | 'float' | 'string' | 'bool' }>,
+  params: Array<{ name: string; type: 'int' | 'float' | 'string' | 'bool'; choices?: unknown[] }>,
 ): ParamTypeError[] {
   const raw = new Map<string, string>();
   for (const def of defines) {
@@ -141,6 +141,16 @@ export function checkOverrideTypes(
       }
     } else if (typeof value !== 'number') {
       errors.push({ name, message: `${name} is a number parameter (${p.type}); got ${shown}`, hint: `give a number, e.g. ${name}=10` });
+    }
+    // A value outside `choices` fell through to whatever branch the model
+    // has last: `-D bolt=M7` built the M5 size, silently.
+    if (p.choices && p.choices.length > 0 && !errors.some(e => e.name === name)
+      && !p.choices.some(c => c === overrides[name] || String(c) === String(overrides[name]))) {
+      errors.push({
+        name,
+        message: `${name} must be one of ${p.choices.map(c => JSON.stringify(c)).join(', ')}; got ${shown}`,
+        hint: `e.g. ${name}=${String(p.choices[0])}`,
+      });
     }
   }
   return errors;

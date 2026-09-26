@@ -17,7 +17,7 @@ export type { Diagnostic, DiagnosticCode, Severity, CodedError } from './diagnos
 export { fingerprint, FINGERPRINT_PRECISION } from './fingerprint.js';
 export { runChecks } from './checks.js';
 export type { ShapeFacts } from './fingerprint.js';
-export { extractParams } from './params.js';
+export { extractParams, PARAM_OPTIONS, unknownParamOptions } from './params.js';
 export type { ParamInfo, ParamSet } from './params.js';
 export { ProfileError, parseProfileBlock, extractProfile, stripProfileBlock } from './profile.js';
 export type { ProfileEntry, Profile } from './profile.js';

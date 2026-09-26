@@ -79,6 +79,25 @@ function evalDefaultValue(expr: any): any {
 // Extraction
 // ---------------------------------------------------------------------------
 
+/** The options an `@param` annotation takes (SPEC @param). The parser
+ *  accepts any `key:value`, so an unknown key -- `choice:` for `choices:` --
+ *  would otherwise be dropped without a word; the CLI warns on anything not
+ *  listed here, and the skill's cheatsheet is tested to mention every one. */
+export const PARAM_OPTIONS = ['min', 'max', 'step', 'label', 'desc', 'choices', 'group', 'type', 'hidden'] as const;
+
+/** `@param` option keys that are not PARAM_OPTIONS, with their lines. */
+export function unknownParamOptions(source: string): { key: string; line: number }[] {
+  const known = new Set<string>(PARAM_OPTIONS);
+  const out: { key: string; line: number }[] = [];
+  for (const stmt of parse(source).statements) {
+    if (stmt.type !== 'Assignment' || !stmt.annotation) continue;
+    for (const key of Object.keys(stmt.annotation.options)) {
+      if (!known.has(key)) out.push({ key, line: stmt.annotation.loc?.line ?? stmt.loc?.line ?? 0 });
+    }
+  }
+  return out;
+}
+
 /**
  * Extract parameter information from PolyScript source code.
  *

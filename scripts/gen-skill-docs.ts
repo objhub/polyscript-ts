@@ -18,6 +18,9 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { KEYWORDS } from '../packages/core/src/ast.ts';
+import { PARAM_OPTIONS } from '../packages/core/src/params.ts';
+import { BUILTIN_ARITY } from '../packages/core/src/eval/types.ts';
 
 const root = new URL('..', import.meta.url).pathname;
 // docs/ lives in the parent workspace, which a standalone clone of this
@@ -78,7 +81,32 @@ for (const page of LOCALIZED) {
 	}
 }
 
+/**
+ * What the cheatsheet must mention. The skill carries this one page, so a
+ * feature missing from it does not exist for the agent: `@param` and its
+ * `choices` lived only on the docs' language page, and the skill never
+ * learned them; neither did it see a single built-in function. Every
+ * keyword, every built-in, every @param option, and both annotations.
+ */
+function missingFromCheatsheet(text: string): string[] {
+	const has = (term: string) => new RegExp(`(^|[^A-Za-z0-9_])${term.replace(/[@$]/g, '\\$&')}([^A-Za-z0-9_]|$)`).test(text);
+	return [
+		...[...KEYWORDS].filter((k) => !has(k)),
+		...Object.keys(BUILTIN_ARITY).filter((f) => !text.includes(`${f}(`)).map((f) => `${f}()`),
+		...PARAM_OPTIONS.filter((o) => !text.includes(`\`${o}\``) && !text.includes(`${o}:`)).map((o) => `@param ${o}`),
+		...['@param', '@profile'].filter((a) => !has(a)),
+	];
+}
+
+const cheatsheet = planned.find((p) => p.path.endsWith('references/cheatsheet.md'));
+const missing = cheatsheet ? missingFromCheatsheet(cheatsheet.text) : [];
+
 if (process.argv.includes('--check')) {
+	if (missing.length > 0) {
+		console.error(`the cheatsheet does not mention: ${missing.join(', ')}`);
+		console.error('Add them to docs/content/ja/cheatsheet.md, then run: bun scripts/gen-skill-docs.ts');
+		process.exit(1);
+	}
 	const stale = planned.filter(
 		(p) => !existsSync(p.path) || readFileSync(p.path, 'utf8') !== p.text,
 	);
@@ -89,6 +117,7 @@ if (process.argv.includes('--check')) {
 	}
 	console.log(`skill copies are current (${planned.length} files)`);
 } else {
+	if (missing.length > 0) console.warn(`warning: the cheatsheet does not mention: ${missing.join(', ')}`);
 	for (const p of planned) {
 		mkdirSync(dirname(p.path), { recursive: true });
 		writeFileSync(p.path, p.text);

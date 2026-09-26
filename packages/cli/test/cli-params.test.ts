@@ -225,3 +225,15 @@ describe('commentedParamLines', () => {
     expect(commentedParamLines(src)).toEqual([1]);
   });
 });
+
+describe('checkOverrideTypes: choices', () => {
+  const params = [{ name: 'bolt', type: 'string' as const, choices: ['M3', 'M4', 'M5'] }, { name: 'n', type: 'int' as const, choices: [1, 2] }];
+  const check = (defs: string[]) => checkOverrideTypes(defs, buildOverrides(defs, undefined), params);
+  it('accepts a listed value and rejects any other', () => {
+    expect(check(['bolt=M3'])).toEqual([]);
+    expect(check(['n=2'])).toEqual([]);
+    const [e] = check(['bolt=M7']);
+    expect(e.message).toBe('bolt must be one of "M3", "M4", "M5"; got M7');
+    expect(check(['n=3']).map(e => e.name)).toEqual(['n']);
+  });
+});

@@ -352,3 +352,11 @@ describe('evaluator -- overrides', () => {
     expect(result).toBe(130);
   });
 });
+
+describe('unknownParamOptions', () => {
+  it('names the keys @param does not have, with their line', async () => {
+    const { unknownParamOptions, PARAM_OPTIONS } = await import('../src/params.js');
+    expect(PARAM_OPTIONS).toContain('choices');
+    expect(unknownParamOptions('@param choice:["a", "b"] desc:"x"\nm = "a"\n@param 1..3\nk = 2')).toEqual([{ key: 'choice', line: 1 }]);
+  });
+});
