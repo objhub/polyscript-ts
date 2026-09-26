@@ -101,5 +101,7 @@ poly build model.poly --params-file presets/large.json
 
 Passing an unknown parameter name via `-D` produces a warning but does not stop execution.
 
+Values are checked against the annotation. A value that is not one of `choices` is an error (`param.choice`). A number outside the `min..max` range is a warning (`param.range`): the range is the GUI slider's, and going past it on purpose is allowed, but `poly verify` (strict by default) and `--strict` stop on it.
+
 See Getting Started for a hands-on walkthrough.
 

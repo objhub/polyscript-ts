@@ -233,7 +233,50 @@ describe('checkOverrideTypes: choices', () => {
     expect(check(['bolt=M3'])).toEqual([]);
     expect(check(['n=2'])).toEqual([]);
     const [e] = check(['bolt=M7']);
+    expect(e.code).toBe('param.choice');
     expect(e.message).toBe('bolt must be one of "M3", "M4", "M5"; got M7');
     expect(check(['n=3']).map(e => e.name)).toEqual(['n']);
+  });
+});
+
+describe('checkOverrideTypes: @param range', () => {
+  const params = [
+    { name: 'width', type: 'int' as const, min: 30, max: 120 },
+    { name: 'low', type: 'float' as const, min: 1.2 },
+  ];
+  const check = (defs: string[]) => checkOverrideTypes(defs, buildOverrides(defs, undefined), params);
+  it('passes the bounds themselves and flags values past them', () => {
+    expect(check(['width=30'])).toEqual([]);
+    expect(check(['width=120'])).toEqual([]);
+    const [e] = check(['width=1000']);
+    expect(e.code).toBe('param.range');
+    expect(e.message).toBe('width is outside its @param range 30..120; got 1000');
+    expect(check(['width=29.9']).map(e => e.code)).toEqual(['param.range']);
+    expect(check(['low=1']).map(e => e.message)).toEqual(['low is outside its @param range 1.2..; got 1']);
+    expect(check(['low=100'])).toEqual([]);
+  });
+  it('a type error is reported alone, not also as out of range', () => {
+    expect(check(['width=wide']).map(e => e.code)).toEqual(['param.type']);
+  });
+});
+
+describe('poly -D against choices and range', () => {
+  const srcFile = join(tmpdir(), 'polyscript-cli-param-range.poly');
+  const src = '@param choices:["M3", "M4"]\nbolt = "M4"\n@param 30..120\nwidth = 80\nbox width 10 (if bolt == "M3" then 3 else 4)\n';
+  it('a value outside choices is an error', () => {
+    writeFileSync(srcFile, src);
+    const { code, stderr } = run(['verify', srcFile, '-D', 'bolt=M8']);
+    expect(code).toBe(1);
+    expect(stderr).toContain('error param.choice');
+    unlinkSync(srcFile);
+  });
+  it('a value outside the range warns, and fails only under strict', () => {
+    writeFileSync(srcFile, src);
+    const strict = run(['verify', srcFile, '-D', 'width=1000']);
+    expect(strict.code).toBe(3);
+    expect(strict.stderr).toContain('warning param.range');
+    const loose = run(['verify', srcFile, '--no-strict', '-D', 'width=1000']);
+    expect(loose.code).toBe(0);
+    unlinkSync(srcFile);
   });
 });

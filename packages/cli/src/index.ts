@@ -222,15 +222,19 @@ async function loadModel(file: string, opts: LoadOptions): Promise<LoadedModel> 
     return process.exit(EXIT_IO) as never;
   });
   if (Object.keys(overrides).length > 0) {
-    let declared: Array<{ name: string; type: 'int' | 'float' | 'string' | 'bool' }> = [];
+    let declared: Parameters<typeof checkOverrideTypes>[2] = [];
     try {
       declared = extractParams(source).params;
     } catch {
       // a parse error is reported by the parse phase below
     }
-    const typeErrors = checkOverrideTypes(opts.define ?? [], overrides, declared);
+    const found = checkOverrideTypes(opts.define ?? [], overrides, declared);
+    const toDiag = (e: (typeof found)[number]) =>
+      makeDiagnostic(e.code, e.code === 'param.range' ? 'warning' : 'error', e.message, { hint: e.hint });
+    diagnostics.push(...found.filter(e => e.code === 'param.range').map(toDiag));
+    const typeErrors = found.filter(e => e.code !== 'param.range');
     if (typeErrors.length > 0) {
-      fail('params', typeErrors.map(e => makeDiagnostic('param.type', 'error', e.message, { hint: e.hint })), EXIT_IO);
+      fail('params', typeErrors.map(toDiag), EXIT_IO);
     }
   }
   diagnostics.push(...commentedParamDiagnostics(source));

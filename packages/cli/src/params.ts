@@ -96,9 +96,11 @@ export function unknownParams(
   return Object.keys(overrides).filter((name) => !known.has(name.replace(/^\$/, '')));
 }
 
-/** A -D / --params-file value that does not fit the declared parameter type. */
+/** A -D / --params-file value that does not fit the declared parameter. */
 export interface ParamTypeError {
   name: string;
+  /** param.type / param.choice are errors; param.range is a warning. */
+  code: 'param.type' | 'param.choice' | 'param.range';
   message: string;
   hint: string;
 }
@@ -114,12 +116,17 @@ export interface ParamTypeError {
  *   - bool accepts exactly `true` / `false` (a JSON boolean from a file);
  *   - int / float accept numbers only;
  *   - string takes the -D text verbatim.
- * Undeclared names are left alone (unknownParams reports them).
+ * Then against the annotation: a value outside `choices` is `param.choice`,
+ * a number outside `min`/`max` is `param.range` (the caller makes that one a
+ * warning). Undeclared names are left alone (unknownParams reports them).
  */
 export function checkOverrideTypes(
   defines: string[],
   overrides: Record<string, unknown>,
-  params: Array<{ name: string; type: 'int' | 'float' | 'string' | 'bool'; choices?: unknown[] }>,
+  params: Array<{
+    name: string; type: 'int' | 'float' | 'string' | 'bool';
+    choices?: unknown[]; min?: number; max?: number;
+  }>,
 ): ParamTypeError[] {
   const raw = new Map<string, string>();
   for (const def of defines) {
@@ -137,10 +144,10 @@ export function checkOverrideTypes(
       else if (typeof value !== 'string') overrides[name] = String(value);
     } else if (p.type === 'bool') {
       if (typeof value !== 'boolean') {
-        errors.push({ name, message: `${name} is a bool parameter; got ${shown}`, hint: `use ${name}=true or ${name}=false` });
+        errors.push({ name, code: 'param.type', message: `${name} is a bool parameter; got ${shown}`, hint: `use ${name}=true or ${name}=false` });
       }
     } else if (typeof value !== 'number') {
-      errors.push({ name, message: `${name} is a number parameter (${p.type}); got ${shown}`, hint: `give a number, e.g. ${name}=10` });
+      errors.push({ name, code: 'param.type', message: `${name} is a number parameter (${p.type}); got ${shown}`, hint: `give a number, e.g. ${name}=10` });
     }
     // A value outside `choices` fell through to whatever branch the model
     // has last: `-D bolt=M7` built the M5 size, silently.
@@ -148,8 +155,23 @@ export function checkOverrideTypes(
       && !p.choices.some(c => c === overrides[name] || String(c) === String(overrides[name]))) {
       errors.push({
         name,
+        code: 'param.choice',
         message: `${name} must be one of ${p.choices.map(c => JSON.stringify(c)).join(', ')}; got ${shown}`,
         hint: `e.g. ${name}=${String(p.choices[0])}`,
+      });
+    }
+    // The range is the GUI slider's, so leaving it can be deliberate: a
+    // warning (exit 3 under --strict) rather than an error. But a typo like
+    // `width=1000` for 100 used to build and report ✓.
+    const v = overrides[name];
+    if (typeof v === 'number' && !errors.some(e => e.name === name)
+      && ((p.min !== undefined && v < p.min) || (p.max !== undefined && v > p.max))) {
+      const range = `${p.min ?? ''}..${p.max ?? ''}`;
+      errors.push({
+        name,
+        code: 'param.range',
+        message: `${name} is outside its @param range ${range}; got ${shown}`,
+        hint: `give a value in ${range}, or widen the @param range if it is meant`,
       });
     }
   }

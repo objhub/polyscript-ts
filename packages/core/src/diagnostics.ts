@@ -43,6 +43,8 @@ export const DIAGNOSTIC_CODES = [
   'check.sweep-distorted',
   'param.unknown',
   'param.type',
+  'param.choice',
+  'param.range',
   'param.commented',
   'param.unknown-option',
   'io.read',
@@ -293,7 +295,7 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
     why: 'The override was ignored, so the model was built with its own defaults\n'
       + 'and the reported dimensions are not the ones asked for.',
     fix: 'Declare it with an @param annotation above the assignment:\n'
-      + '  # @param 60..120 desc:"width (mm)"\n'
+      + '  @param 60..120 desc:"width (mm)"\n'
       + '  width = 80',
   },
   'param.type': {
@@ -303,6 +305,26 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
       + 'parameter meant as false was built as true, silently.',
     fix: 'bool: exactly true or false (`-D engrave=true`). int / float: a number.\n'
       + 'The type comes from the default value, or from @param type:"...".',
+  },
+  'param.choice': {
+    title: 'A -D value is not one of the parameter\'s choices',
+    why: 'A model picks its variant with if/else, so a value outside the list\n'
+      + 'falls through to the last else: `-D bolt=M8` built the M6 size and\n'
+      + 'reported success. A typo (`m4`, `M-4`) went the same way.',
+    fix: 'Give one of the listed values exactly (case matters):\n'
+      + '  @param choices:["M3", "M4", "M5"] desc:"bolt size"\n'
+      + '  poly verify bolt.poly -D bolt=M4',
+  },
+  'param.range': {
+    title: 'A -D value lies outside the parameter\'s @param range',
+    why: 'The GUI slider cannot leave the range, but -D can, so a slip\n'
+      + '(`width=1000` for 100) built and reported success. A warning, not an\n'
+      + 'error: going past the range on purpose is legitimate. It fails under\n'
+      + '--strict (the default of poly verify).',
+    fix: 'Give a value inside the range, or widen the range if the model is\n'
+      + 'meant to work there:\n'
+      + '  @param 30..200 desc:"width (mm)"\n'
+      + 'Pass --no-strict to build out of range once without changing the file.',
   },
   'param.commented': {
     title: "'# @param' is a comment, not a parameter annotation",

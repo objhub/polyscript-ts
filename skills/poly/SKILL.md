@@ -68,7 +68,8 @@ rejected (`param.type`). Branch on it with `if engrave then text "A" 10 else cir
 parentheses: `if engrave then (a | cut 1) else a`.
 
 A fixed set of options (`bolt` M3 / M4 / M5) is `@param choices:[...]`, a
-dropdown; `-D` then accepts only those values. `@profile { ... }` switches
+dropdown; `-D` then accepts only those values (`param.choice`). A `-D` number
+outside `@param min..max` warns `param.range`, which `poly verify` fails on. `@profile { ... }` switches
 several parameters at once. The options (`min max step label desc choices
 group type hidden`) are named in `references/cheatsheet.md` and explained in
 `references/language/param-annotation.md`; a misspelt option warns
