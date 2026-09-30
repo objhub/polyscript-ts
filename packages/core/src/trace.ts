@@ -20,7 +20,7 @@ import { faceCenter, faceNormal, edgeCenter, edgeDirection, vertexPoint, to3d } 
 
 /** What a selection step actually picked, in numbers.
  *
- * A count alone cannot tell `faces ">Z"` from `faces "+Z"`: both report
+ * A count alone cannot tell `faces >Z` from `faces +Z`: both report
  * `1/6`-ish figures on a box while one is the top and the other a side. The
  * centroid and the normal separate them without rendering anything, which is
  * the whole point -- an orientation mistake otherwise survives every numeric

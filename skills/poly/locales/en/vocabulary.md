@@ -67,11 +67,11 @@ the operation that does it. The syntax itself is in the
 
 | You say | Selector |
 |---|---|
-| top | `">Z"` or `top` |
-| bottom | `"<Z"` or `bottom` |
-| the sides | `"+Z"` (faces whose normal is perpendicular to Z) |
-| right / left | `">X"` / `"<X"` |
-| front / back | `"<Y"` (front) / `">Y"` (back) |
+| top | `>Z` or `top` |
+| bottom | `<Z` or `bottom` |
+| the sides | `+Z` (faces whose normal is perpendicular to Z) |
+| right / left | `>X` / `<X` |
+| front / back | `<Y` (front) / `>Y` (back) |
 | the vertical edges (corners) | `edges =Z` |
 | the top rim | `edges >Z` |
 | all of them | leave the selector out |

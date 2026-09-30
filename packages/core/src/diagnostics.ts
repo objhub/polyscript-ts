@@ -171,7 +171,7 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
       + 'only some of them -- `extrude` needs a Face, `shell` needs a face\n'
       + 'selection, `fillet` needs an edge selection.',
     fix: 'Insert the step that produces the context the operation wants:\n'
-      + '  box 10 10 10 | faces ">Z" | shell 2        # select before shelling\n'
+      + '  box 10 10 10 | faces >Z | shell 2          # select before shelling\n'
       + '  rect 50 30 | extrude 5                     # extrude a region\n'
       + '  wire [(0,0), (10,0)] | offset 1 | extrude 5 # a curve has no area\n'
       + 'The message lists the contexts the operation is allowed in.',

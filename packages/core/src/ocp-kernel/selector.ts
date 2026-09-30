@@ -117,7 +117,7 @@ export function selectItems(
   }
 
   // # = the normal (or edge direction) is PERPENDICULAR to the axis.
-  // Internal form of SPEC's `+`: `faces "+Z"` is the four upright sides of a
+  // Internal form of SPEC's `+`: `faces +Z` is the four upright sides of a
   // box, not its top and bottom (SPEC.md, "+X, +Y, +Z | 法線が指定軸に垂直").
   //
   // This used to test `|dot| > 0.9` -- the normal parallel to the axis -- on
