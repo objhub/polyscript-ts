@@ -10,13 +10,13 @@
 
 | 日本語 | 操作 | 例 |
 |---|---|---|
-| 角丸・R・丸める | `fillet r` | `edges "=Z" \| fillet 3` |
-| 面取り・C面・角を落とす | `chamfer c` | `edges ">Z" \| chamfer 1` |
-| 肉抜き・中空化・器にする | `faces` + `shell t` | `faces ">Z" \| shell 2` |
+| 角丸・R・丸める | `fillet r` | `edges =Z \| fillet 3` |
+| 面取り・C面・角を落とす | `chamfer c` | `edges >Z \| chamfer 1` |
+| 肉抜き・中空化・器にする | `faces` + `shell t` | `faces >Z \| shell 2` |
 | くり抜く・削る・引く | `diff` | `\| diff (cylinder 5 30)` |
 | 足す・くっつける | `union` | `\| union $boss` |
 | 重なりだけ残す | `inter` | `\| inter (sphere 20)` |
-| 穴・穴あけ | `hole r` | `faces ">Z" \| hole 3` |
+| 穴・穴あけ | `hole r` | `faces >Z \| hole 3` |
 | 皿穴・座掘り | 段付き `hole` を2回 | `hole 3.4` の後に浅い `hole 6` |
 | 貫通穴 | `hole r`(深さ省略) | 省略すると貫通する |
 | 溝・スリット | 細い `box` を `diff` | `\| diff ($slot)` |
@@ -71,8 +71,8 @@
 | 側面 | `"+Z"`(法線がZに垂直な面) |
 | 右面 / 左面 | `">X"` / `"<X"` |
 | 手前 / 奥 | `"<Y"`(front) / `">Y"`(back) |
-| 縦のエッジ(角) | `edges "=Z"` |
-| 上面の外周 | `edges ">Z"` |
+| 縦のエッジ(角) | `edges =Z` |
+| 上面の外周 | `edges >Z` |
 | 全部 | セレクタを省略する |
 
 `+Z` は上面ではなく側面。`front` はマイナス側。どちらも間違いやすい

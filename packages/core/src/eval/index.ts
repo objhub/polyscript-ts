@@ -1548,6 +1548,11 @@ function literalText(node: unknown): string {
     }
     case 'TagRef': return `$${n.name}`;
     case 'VarRef': return String(n.name);
+    case 'ListLit': {
+      // `edges [>Z, <Z]`: the OR form of a selector, shown as written.
+      const items = ((node as { elements?: unknown[] }).elements ?? []).map(literalText);
+      return items.every(Boolean) ? `[${items.join(', ')}]` : '';
+    }
     default: return '';
   }
 }

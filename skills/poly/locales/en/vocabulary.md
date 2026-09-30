@@ -11,13 +11,13 @@ the operation that does it. The syntax itself is in the
 
 | You say | Operation | Example |
 |---|---|---|
-| round the corners, radius, fillet | `fillet r` | `edges "=Z" \| fillet 3` |
-| bevel, chamfer, break the edge | `chamfer c` | `edges ">Z" \| chamfer 1` |
-| hollow out, make it a box/cup, wall it | `faces` + `shell t` | `faces ">Z" \| shell 2` |
+| round the corners, radius, fillet | `fillet r` | `edges =Z \| fillet 3` |
+| bevel, chamfer, break the edge | `chamfer c` | `edges >Z \| chamfer 1` |
+| hollow out, make it a box/cup, wall it | `faces` + `shell t` | `faces >Z \| shell 2` |
 | cut away, subtract, remove | `diff` | `\| diff (cylinder 5 30)` |
 | add, join, stick on | `union` | `\| union $boss` |
 | keep only the overlap | `inter` | `\| inter (sphere 20)` |
-| hole, drill, bore | `hole r` | `faces ">Z" \| hole 3` |
+| hole, drill, bore | `hole r` | `faces >Z \| hole 3` |
 | counterbore, countersink | two `hole`s, stepped | `hole 3.4`, then a shallow `hole 6` |
 | through hole | `hole r` with no depth | omit the depth and it goes through |
 | slot, groove, channel | a thin `box`, then `diff` | `\| diff ($slot)` |
@@ -72,8 +72,8 @@ the operation that does it. The syntax itself is in the
 | the sides | `"+Z"` (faces whose normal is perpendicular to Z) |
 | right / left | `">X"` / `"<X"` |
 | front / back | `"<Y"` (front) / `">Y"` (back) |
-| the vertical edges (corners) | `edges "=Z"` |
-| the top rim | `edges ">Z"` |
+| the vertical edges (corners) | `edges =Z` |
+| the top rim | `edges >Z` |
 | all of them | leave the selector out |
 
 `+Z` is the sides, not the top. `front` is the **minus** side. Both are easy to

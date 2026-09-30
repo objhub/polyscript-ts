@@ -16,7 +16,7 @@ import { pushWarning } from '../diagnostics.js';
  *
  * Returns an empty array when nothing matched. It used to fall back to
  * returning every item, which turned a selector typo into "select everything"
- * -- `edges ">Z and =Z" | fillet 3` rounded the whole box instead of failing.
+ * -- `edges >Z =Z | fillet 3` rounded the whole box instead of failing.
  * The caller (see `checkSelection` in selection.ts) reports the empty match.
  *
  * Selectors arrive already normalised to the internal form (`|` parallel,
@@ -31,7 +31,11 @@ import { pushWarning } from '../diagnostics.js';
  * have.
  */
 export function selectorSourceForm(sel: string): string {
-  return sel.replace(/(^|(?<= ))\|/g, '=').replace(/(^|(?<= ))#/g, '+');
+  const symbols = (s: string) => s.replace(/(^|(?<= ))\|/g, '=').replace(/(^|(?<= ))#/g, '+');
+  // The source spells AND as juxtaposition and OR as a list; the joined
+  // `and` / `or` words are the internal (and the deprecated quoted) form.
+  const alternatives = sel.split(' or ').map(part => symbols(part.split(' and ').join(' ')));
+  return alternatives.length > 1 ? `[${alternatives.join(', ')}]` : alternatives[0];
 }
 
 export function selectItems(

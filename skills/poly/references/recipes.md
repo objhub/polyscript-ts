@@ -20,8 +20,8 @@ r = 3
 
 box w d h
  | floor
- | edges "=Z" | fillet r
- | faces ">Z" | shell t
+ | edges =Z | fillet r
+ | faces >Z | shell t
 ```
 
 順序が重要: **`fillet` を先、`shell` を後**。逆にすると OCCT の制限で
@@ -67,7 +67,7 @@ $plate | union $bosses | diff $pilots
 ```
 
 穴は「ボスと同じ位置に円柱を並べて `diff`」で開けるのが確実。
-`faces ">Z" | grid ... | hole` を使うとボスの上面と板の上面が混ざって
+`faces >Z | grid ... | hole` を使うとボスの上面と板の上面が混ざって
 意図しない位置に開く。
 
 検証: 体積 15792.51 = 板 14400 + ボス 4×π×16×8 − 下穴 4×π×1.25²×11。
@@ -97,8 +97,8 @@ $by = case_d / 2 - wall_t - boss_r + overlap
 
 $shell = box case_w case_d case_h
   | floor
-  | edges "=Z" | fillet corner_r
-  | faces ">Z" | shell wall_t
+  | edges =Z | fillet corner_r
+  | faces >Z | shell wall_t
 
 # shell の床は wall_t 厚なので、ボスは z = wall_t から立てる
 $boss  = cylinder boss_r boss_h | floor | translate 0 0 wall_t
@@ -175,12 +175,12 @@ hole_r = 2.5
 
 box w d h
  | floor
- | edges "=Z" | fillet 5
- | faces ">Z" | shell t
- | faces "<Z" | grid 5 3 20 | hole hole_r
+ | edges =Z | fillet 5
+ | faces >Z | shell t
+ | faces <Z | grid 5 3 20 | hole hole_r
 ```
 
-`faces "<Z" | grid nx ny pitch` は「底面上に格子状の点を置く」の意味
+`faces <Z | grid nx ny pitch` は「底面上に格子状の点を置く」の意味
 (`points (grid ...)` の省略形)。`--trace` の `grid` 行が点数(この例なら15)を
 報告するので、狙った穴数になっているか確認できる。
 
@@ -215,7 +215,7 @@ union [$vertical, $horizontal, $rib]
 $slot = sketch [(5, 0), arc (5, 0) (0, -5) (-5, 0), (0, 7), (5, 0)]
 
 box 40 40 20
- | faces ">Z" | place $slot | cut
+ | faces >Z | place $slot | cut
 ```
 
 `place` は変数に入れた2D形状を選択面の上に配置する。`cut` は深さ省略で貫通。
@@ -273,7 +273,7 @@ helix 5 40 12 | sweep (circle 2)
 ```poly
 # 6か所に穴
 cylinder 40 10
- | faces ">Z" | polar 6 25 | hole 3
+ | faces >Z | polar 6 25 | hole 3
 
 # 6個の柱を円形に複製
 cylinder 3 20 | polar 6 25

@@ -5,7 +5,7 @@ A pipe-based parametric CAD language built on OpenCascade that exports STL, STEP
 ```
 box 80 60 10
  | fillet 2
- | faces ">Z" | workplane
+ | faces >Z | workplane
  | circle 10 | cut
 ```
 
@@ -54,7 +54,7 @@ poly hello.poly -o hello.glb        # export glTF, colours included
 ```
 polyline [(0,0), (50,0), (50,5), (5,5), (5,30), (0,30)]
  | extrude 20
- | faces ">Z" | chamfer 1
+ | faces >Z | chamfer 1
 ```
 
 ### Hex nut
@@ -82,10 +82,10 @@ box 80 60 3 | fillet 1
 ```
 cylinder 12 2
  | diff cylinder 5 3
- | faces ">Z" | workplane
+ | faces >Z | workplane
  | circle 8 | extrude 10
  | diff cylinder 5 12
- | faces ">Z" | workplane
+ | faces >Z | workplane
  | circle 12 | extrude 2
  | diff cylinder 5 16
 ```
@@ -94,10 +94,10 @@ cylinder 12 2
 
 ```
 cylinder 25 5
- | faces ">Z" | workplane
+ | faces >Z | workplane
  | circle 15 | extrude 30
  | diff cylinder 12 40
- | faces "<Z" | workplane
+ | faces <Z | workplane
  | points (polar 6 20)
  | hole 5 depth:5
 ```

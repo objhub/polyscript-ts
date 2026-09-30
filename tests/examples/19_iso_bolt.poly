@@ -58,7 +58,7 @@ tip = gd + lead
 # thread_z0, so the thread begins on a flat circle all the way round instead
 # of on the sweep's own slanted cap.
 shaft = cylinder r shank | floor
- | faces ">Z" | chamfer tip
+ | faces >Z | chamfer tip
  | diff (helix pitch (shank + 4 - thread_z0) r
          | sweep groove
          | translate 0 0 (thread_z0 - 2)
@@ -67,6 +67,6 @@ shaft = cylinder r shank | floor
 
 head = polygon 6 hr
  | extrude head_h
- | faces "<Z" | chamfer 1
+ | faces <Z | chamfer 1
 
 union [head, shaft]

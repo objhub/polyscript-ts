@@ -96,7 +96,7 @@ Every line it prints carries a **stable code** (`selector.empty`,
 `context.invalid-op`, `check.no-effect`, ...), a source position, and a fix:
 
 ```
-case.poly:7:4 error selector.empty: selector '>Z and =Z' matched 0 of 48 edges -- ...
+case.poly:7:4 error selector.empty: selector '>Z =Z' matched 0 of 48 edges -- ...
 ```
 
 `poly explain <code>` prints the long form. Do not guess at a rewrite before
@@ -108,7 +108,7 @@ Read the trace table and confirm all of:
       means it; the codes to recognise are `selector.empty` (matched nothing)
       and `selector.unknown` (unparsable, so *nothing* was filtered)
 - [ ] the `where` column is the face you meant. This is what separates
-      `faces ">Z"` (the top: `n=+Z`) from `faces "+Z"` (the sides: no shared
+      `faces >Z` (the top: `n=+Z`) from `faces +Z` (the sides: no shared
       normal), and it is the one mistake numbers alone used to miss:
       `c=` is the centroid of the selection, `n=`/`d=` its normal or direction,
       `a=` its area
@@ -134,7 +134,7 @@ Example of the failure that has no visual signature:
 #  line  op               context        sel    where               volume   solids  faces
 1  3     faces >Z         FaceSelection  1/6    c=(0,0,15) n=+Z     72000.0  1       6
 2  4     shell 2          3D             -      -                   15552.0  1       11
-3  5     edges >Z and =Z  EdgeSelection  0/48   -                   15552.0  1       11
+3  5     edges >Z =Z      EdgeSelection  0/48   -                   15552.0  1       11
 ```
 
 Step 3 selected nothing. It now fails the build with `selector.empty` at line 5

@@ -36,6 +36,7 @@ export const DIAGNOSTIC_CODES = [
   'call.arity',
   'selector.empty',
   'selector.unknown',
+  'selector.legacy',
   'eval.error',
   'check.multiple-solids',
   'check.no-effect',
@@ -227,7 +228,7 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
       + '  >Z <Z   the topmost / bottommost faces or edges\n'
       + '  =Z      edges PARALLEL to Z (the four vertical corners of a box)\n'
       + '  +Z      faces PERPENDICULAR to Z (the sides, not the top)\n'
-      + '`>Z and =Z` is the classic empty match: a top face has no edge that\n'
+      + '`>Z =Z` is the classic empty match: a top face has no edge that\n'
       + 'also runs along Z. Use `poly verify --trace` to see what each step\n'
       + 'selected, including the centroid and normal of the selection.',
   },
@@ -237,7 +238,18 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
       + 'success: `faces "Z"` keeps all six faces of a box and the following\n'
       + '`shell` hollows the whole thing.',
     fix: 'A selector is an operator plus an axis: `>Z`, `<X`, `=Z`, `+Y`. The\n'
-      + 'operator is not optional. Quote it: `faces ">Z"`.',
+      + 'operator is not optional. Write it without quotes: `faces >Z`. A quoted\n'
+      + 'string (`faces ">Z"`) still works but is deprecated, and a typo in a\n'
+      + 'string is only caught here, at build time; `faces Z` fails as an\n'
+      + 'undefined variable.',
+  },
+  'selector.legacy': {
+    title: 'The selector uses the kernel\'s internal spelling',
+    why: '`|Z` (parallel) and `#Z` (perpendicular) are what the kernel sees after\n'
+      + 'translation; they were never PolyScript syntax and are not documented.\n'
+      + 'They only get through inside a quoted string.',
+    fix: 'Write the language\'s own symbols, unquoted: `edges =Z` for parallel,\n'
+      + '`faces +Z` for perpendicular.',
   },
   'eval.error': {
     title: 'The geometry kernel refused the operation',

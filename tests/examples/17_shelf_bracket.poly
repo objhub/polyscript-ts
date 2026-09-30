@@ -18,10 +18,10 @@ gusset = polyline [(0,0), (25,0), (0,35)]
 # Combine and add edge fillets
 bracket
  | union gusset
- | edges "|Z" | fillet 2
- | faces "<X" | workplane
+ | edges =Z | fillet 2
+ | faces <X | workplane
  | points (grid 1 2 20)
  | hole 2.5
- | faces "<Y" | workplane
+ | faces <Y | workplane
  | points (grid 2 1 18)
  | hole 2

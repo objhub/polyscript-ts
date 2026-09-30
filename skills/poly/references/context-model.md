@@ -105,14 +105,14 @@ arc (0,0,-25) (25,0,0) center:(0,0,0) | sweep (circle 5)
 
 ```
 box            3D
- | faces ">Z"  FaceSelection   面を選ぶ
+ | faces >Z  FaceSelection   面を選ぶ
  | shell 2     3D              中空化して3Dに戻る
- | edges "=Z"  EdgeSelection   縦のエッジを選ぶ
+ | edges =Z  EdgeSelection   縦のエッジを選ぶ
  | fillet 2    3D              角丸にして3Dに戻る
 
 rect           Face
  | extrude 10  3D              押し出して3Dに
- | faces ">Z"  FaceSelection
+ | faces >Z  FaceSelection
  | grid 2 2 15 PointSelection  穴あけ位置の点群
  | hole 3      3D              4か所に穴
 ```

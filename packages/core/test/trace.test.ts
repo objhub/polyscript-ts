@@ -20,7 +20,7 @@ function traced(source: string, trace: Trace): Trace {
   return trace;
 }
 
-const SRC = 'box 20 20 10 | faces ">Z" | shell 2 | edges "|Z" | fillet 1';
+const SRC = 'box 20 20 10 | faces >Z | shell 2 | edges =Z | fillet 1';
 
 describe('Trace', () => {
   it('has no ms by default: table and JSON match the Python trace', () => {

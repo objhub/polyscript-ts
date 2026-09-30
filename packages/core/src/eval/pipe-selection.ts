@@ -6,6 +6,7 @@ import type { Expression, FacesSelect, EdgesSelect, VertsSelect, PointsSelect } 
 import type { WpState } from '../ocp-kernel.js';
 import { wpFaces, wpEdges, wpVertices, wpPushPoints, wpWorkplane } from '../ocp-kernel.js';
 import { asString, type Value } from './types.js';
+import { pushWarning } from '../diagnostics.js';
 
 export type PlacementToPointsFn = (val: Value) => [number, number][];
 
@@ -38,6 +39,14 @@ function normalizeSelector(sel: string): string {
   if (named) sel = named;
   const mapped = SELECTOR_SYMBOL_MAP[sel[0]];
   if (sel.length >= 2 && mapped) return mapped + sel.slice(1);
+  // The kernel's own spelling, reachable only through a quoted string. It
+  // works, so it is not `selector.unknown` (which means nothing was filtered).
+  if (sel.length >= 2 && (sel[0] === '|' || sel[0] === '#')) {
+    pushWarning(`selector '${sel}' is the kernel's internal spelling, not PolyScript syntax`, {
+      code: 'selector.legacy',
+      hint: `write ${sel[0] === '|' ? '=' : '+'}${sel.slice(1)} without quotes`,
+    });
+  }
   return sel;
 }
 

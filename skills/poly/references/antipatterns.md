@@ -16,12 +16,12 @@
 
 ```poly
 # ❌ >Z のエッジで Z軸に平行なものは存在しない(上端の辺は水平)
-box 60 40 30 | edges ">Z and =Z" | fillet 3
+box 60 40 30 | edges >Z =Z | fillet 3
 
 # ✓ 上面の4辺を丸めたいなら
-box 60 40 30 | edges ">Z" | fillet 3
+box 60 40 30 | edges >Z | fillet 3
 # ✓ 垂直な4辺(角)を丸めたいなら
-box 60 40 30 | edges "=Z" | fillet 3
+box 60 40 30 | edges =Z | fillet 3
 ```
 
 **症状**: 0件マッチだと `fillet`/`chamfer` は**全エッジにフォールバックする**。
@@ -35,16 +35,20 @@ box 60 40 30 | edges "=Z" | fillet 3
 ## 2. セレクタのタイプミス → 全件選択
 
 ```poly
-# ❌ 記号が抜けている
+# ❌ 記号が抜けている(クォートで囲むと文字列として通ってしまう)
 box 10 10 10 | faces "Z" | shell 2
 
-# ✓
-box 10 10 10 | faces ">Z" | shell 2
+# ✓ セレクタはクォートなしで書く
+box 10 10 10 | faces >Z | shell 2
 ```
 
-**症状**: 未知のセレクタは絞り込みを行わず**全6面が選択される**。
+**症状**: 文字列の未知のセレクタは絞り込みを行わず**全6面が選択される**。
 `selector.unknown`(警告)が出るがビルドは成功する。`poly verify` は既定で strict
 なので exit 3 で止まる。`sel` 列が `6/6`、`where` 列に共通法線が出ないのが痕跡。
+
+クォートなしなら同じ間違い `faces Z` は「未定義変数 Z」のエラーで止まる。
+セレクタは常にクォートなしで書く(`faces >Z`、`edges =Z >X`、`edges [>Z, <Z]`)。
+クォート付き `faces ">Z"` は互換のため動くが非推奨。
 
 ---
 
@@ -52,10 +56,10 @@ box 10 10 10 | faces ">Z" | shell 2
 
 ```poly
 # ❌ 上面を選ぼうとして側面4枚を選んでいる
-box 60 40 30 | faces "+Z" | shell 2
+box 60 40 30 | faces +Z | shell 2
 
 # ✓
-box 60 40 30 | faces ">Z" | shell 2
+box 60 40 30 | faces >Z | shell 2
 ```
 
 `+Z` は「法線がZ軸に**垂直**な面」=**側面4枚**。`=Z` は「法線がZ軸に**平行**」
@@ -70,7 +74,7 @@ box 60 40 30 | faces ">Z" | shell 2
 | `+Z` | 側面4枚 | `a=6000` |
 
 **症状**: 想定と違う面が中空化される。個数(`4/6`)より面積で見分けるのが速い。
-なお `faces "+Z" | shell` は6面のうち4面を除去する要求なので、OCCT が
+なお `faces +Z | shell` は6面のうち4面を除去する要求なので、OCCT が
 `shell: operation failed` で拒否する(上面だけ開けたいなら `>Z`)。
 
 ---
@@ -112,7 +116,7 @@ $lid  = rect 80 60 | extrude 3 | translate 0 0 20
 
 ```poly
 # ❌ shell の床厚は wall_t(2mm)。床が3mmのつもりでボスを z=3 に置くと1mm浮く
-$shell = box 80 60 25 | floor | faces ">Z" | shell 2
+$shell = box 80 60 25 | floor | faces >Z | shell 2
 $boss  = cylinder 4 15 | floor | translate 0 0 3
 
 # ✓ shell の床厚は wall_t と同じ
@@ -239,7 +243,7 @@ box 10 10 10 | diff (cylinder 3 20)
 cylinder 3 20 | polar 6 20
 
 # 面選択後: 穴あけ位置の点群になる(points の省略形)
-box 60 60 10 | faces ">Z" | polar 6 20 | hole 3
+box 60 60 10 | faces >Z | polar 6 20 | hole 3
 ```
 
 ---
@@ -257,9 +261,9 @@ n = floor(7 / 2)          # 数学関数(3)
 
 ```poly
 # ❌ shell は面選択が必要。エッジ選択後には置けない
-box 10 10 10 | edges ">Z" | shell 2
+box 10 10 10 | edges >Z | shell 2
 # ✓
-box 10 10 10 | faces ">Z" | shell 2
+box 10 10 10 | faces >Z | shell 2
 
 # ❌ extrude は2Dプロファイル用。すでに3D
 box 10 10 10 | extrude 5
@@ -267,9 +271,9 @@ box 10 10 10 | extrude 5
 rect 50 30 | extrude 5
 
 # ❌ hole は面選択かポイント選択が必要
-box 10 10 10 | edges ">Z" | hole 3
+box 10 10 10 | edges >Z | hole 3
 # ✓
-box 10 10 10 | faces ">Z" | hole 3
+box 10 10 10 | faces >Z | hole 3
 ```
 
 `wire [...]` は曲線(Wire)で、閉じても面(Face)にはならない:
@@ -305,11 +309,11 @@ box 40 30 10 | faces >Z | place (rect 10 10 | diff (circle 3)) | cut 2
 ## 13. `workplane` は面選択が空だと原点に戻る
 
 ```poly
-# ❌ 面が選べていないと、原点のXY平面にスケッチが描かれる
+# ❌ 面が選べていないと、原点のXY平面にスケッチが描かれる(文字列の綴り間違いは通ってしまう)
 box 10 10 10 | faces "Z" | workplane | circle 3 | cut
 
 # ✓
-box 10 10 10 | faces ">Z" | workplane | circle 3 | cut
+box 10 10 10 | faces >Z | workplane | circle 3 | cut
 ```
 
 **症状**: 選択面上ではなく原点に描画される。0件マッチなら `selector.empty` で止まるが、

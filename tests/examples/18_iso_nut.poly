@@ -48,6 +48,6 @@ plug = cylinder rn (nut_h + 2) | translate 0 0 (nut_h / 2)
 
 polygon 6 hr
  | extrude nut_h
- | faces ">Z" | chamfer 1
- | faces "<Z" | chamfer 1
+ | faces >Z | chamfer 1
+ | faces <Z | chamfer 1
  | diff plug
