@@ -14,6 +14,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { parse } from '../src/parser.js';
 import { Evaluator } from '../src/evaluator.js';
 import { initOC } from '../src/ocp-kernel/init.js';
+import { drainDiagnostics } from '../src/diagnostics.js';
 import { getFaces, getEdges, faceCenter } from '../src/ocp-kernel/geometry.js';
 import type { OC, WpState } from '../src/ocp-kernel/types.js';
 
@@ -87,5 +88,40 @@ describe('edge selectors on a 60x40x30 box', () => {
 
   it('+Z is the eight horizontal edges', () => {
     expect(selectedEdgeCount(`${BOX} | edges "+Z"`)).toEqual({ count: 8, total: 12 });
+  });
+});
+
+describe('selector spellings reach the kernel once (issue: unquoted =Z warned selector.legacy)', () => {
+  // SelectorLit used to evaluate to the kernel spelling (`|Z`), and the
+  // boundary translated again -- so the canonical unquoted form arrived
+  // looking like the deprecated internal one and warned, while the quoted
+  // string it deprecates passed. `poly verify` failed on every `edges =Z`.
+  const warningsOf = (source: string) => {
+    drainDiagnostics();
+    select(source);
+    return drainDiagnostics().map((d) => d.code);
+  };
+
+  it.each([
+    'box 10 20 30 | edges =Z | fillet 2',
+    'box 10 20 30 | faces +Z',
+    'box 10 20 30 | edges =Z >X | fillet 2',
+    'box 10 20 30 | edges [=Z, >Z] | fillet 1',
+    '$s = =Z\nbox 10 20 30 | edges $s | fillet 2',
+    'box 10 20 30 | edges "=Z" | fillet 2',
+  ])('%s warns nothing', (src) => {
+    expect(warningsOf(src)).toEqual([]);
+  });
+
+  it('the kernel spelling inside a string is the one that warns', () => {
+    expect(warningsOf('box 10 20 30 | edges "|Z" | fillet 2')).toEqual(['selector.legacy']);
+    expect(warningsOf('box 10 20 30 | faces "#Z"')).toEqual(['selector.legacy']);
+  });
+
+  it('unquoted and quoted =Z select the same edges', () => {
+    const a = select('box 10 20 30 | edges =Z').selectedEdges.length;
+    const b = select('box 10 20 30 | edges "=Z"').selectedEdges.length;
+    expect(a).toBe(4);
+    expect(b).toBe(4);
   });
 });

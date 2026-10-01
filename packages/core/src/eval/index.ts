@@ -68,24 +68,6 @@ import type { CodedError } from '../diagnostics.js';
 import { asDiagnosticCode } from '../diagnostics.js';
 
 // ---------------------------------------------------------------------------
-// Selector mapping: PolyScript selector notation -> CadQuery selector string
-// ---------------------------------------------------------------------------
-
-/**
- * Convert PolyScript selector (e.g. ">Z", "=X", "+Y") to CadQuery selector string.
- * Mapping: = -> | (parallel), + -> # (perpendicular). > and < stay as-is.
- */
-function selectorToCadQuery(sel: string): string {
-  const symbol = sel[0];
-  const axis = sel.slice(1);
-  switch (symbol) {
-    case '=': return `|${axis}`;
-    case '+': return `#${axis}`;
-    default: return sel; // >, < remain unchanged
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Evaluator
 // ---------------------------------------------------------------------------
 
@@ -146,7 +128,12 @@ export class Evaluator {
       // Literals
       'NumberLit': (e) => (e as { value: number }).value,
       'StringLit': (e) => (e as { value: string }).value,
-      'SelectorLit': (e) => selectorToCadQuery((e as { value: string }).value),
+      // A selector's value is its source form (`=Z`); the translation to the
+      // kernel's spelling happens once, at the kernel boundary (normalizeSelector
+      // in pipe-selection.ts). Translating here too made the unquoted form reach
+      // that boundary already translated, where it was mistaken for the
+      // deprecated internal spelling and warned selector.legacy.
+      'SelectorLit': (e) => (e as { value: string }).value,
       'BoolConst': (e) => (e as { value: boolean }).value,
       // References
       'VarRef': (e) => this.env.get((e as { name: string }).name),

@@ -491,12 +491,12 @@ describe('selection', () => {
       expect(evaluateExpressions(parse('$x = <X'))).toBe('<X');
     });
 
-    it('evaluates =Z selector (parallel) to "|Z" string', () => {
-      expect(evaluateExpressions(parse('$x = =Z'))).toBe('|Z');
+    it('evaluates =Z selector to its source form (the kernel spelling is applied at the boundary)', () => {
+      expect(evaluateExpressions(parse('$x = =Z'))).toBe('=Z');
     });
 
-    it('evaluates +Z selector (perpendicular) to "#Z" string', () => {
-      expect(evaluateExpressions(parse('$x = +Z'))).toBe('#Z');
+    it('evaluates +Z selector to its source form', () => {
+      expect(evaluateExpressions(parse('$x = +Z'))).toBe('+Z');
     });
 
     it('evaluates name alias top to ">Z" string', () => {
@@ -507,13 +507,13 @@ describe('selection', () => {
       expect(evaluateExpressions(parse('$x = bottom'))).toBe('<Z');
     });
 
-    it('maps all selector symbols correctly', () => {
+    it('a selector value is its source form for every symbol', () => {
       expect(evaluateExpressions(parse('$x = >X'))).toBe('>X');
       expect(evaluateExpressions(parse('$x = <Y'))).toBe('<Y');
-      expect(evaluateExpressions(parse('$x = =Z'))).toBe('|Z');
-      expect(evaluateExpressions(parse('$x = +X'))).toBe('#X');
-      expect(evaluateExpressions(parse('$x = =Y'))).toBe('|Y');
-      expect(evaluateExpressions(parse('$x = +Y'))).toBe('#Y');
+      expect(evaluateExpressions(parse('$x = =Z'))).toBe('=Z');
+      expect(evaluateExpressions(parse('$x = +X'))).toBe('+X');
+      expect(evaluateExpressions(parse('$x = =Y'))).toBe('=Y');
+      expect(evaluateExpressions(parse('$x = +Y'))).toBe('+Y');
     });
 
     it('maps all selector name aliases', () => {
