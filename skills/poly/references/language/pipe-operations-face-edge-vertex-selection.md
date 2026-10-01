@@ -31,7 +31,7 @@ Selectors use short symbols or name aliases:
 | `-Z` | faces that face down (normal -Z) | |
 | `+X`, `-X`, `+Y`, `-Y` | faces whose normal points that way | |
 
-> **Note**: `+Z` selects faces whose normal is perpendicular to Z -- i.e., **side faces**, not the top or bottom. To select the top or bottom face, use `>Z` / `<Z`.
+> **`>Z` vs `+Z`**: `>Z` selects by position (the highest face), `+Z` by direction (every face that faces up). On a box both are the one top face; on a stepped part `+Z` returns several. `+` / `-` apply to faces only; on edges they are an error. There is no "perpendicular" selector: an edge perpendicular to Z is `=XY`.
 
 #### Compound selectors
 

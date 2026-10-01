@@ -13,14 +13,14 @@ whole reference (~10k tokens together). Tokens are approximate.
 | `primitives-3d.md` | Primitives > 3D | ~200 | `cone r1 r2 h` creates a frustum. `r1` is the bottom radius, `r2` is the top radius, `h` is the height. Set... |
 | `primitives-position-convention.md` | Primitives > Position Convention | ~300 | 3D primitives and `extrude` follow different placement rules along the Z axis. Mixing them without care is ... |
 | `primitives-2d.md` | Primitives > 2D | ~1000 | 2D primitives produce **faces**. Use `\| extrude`, `\| cut`, `\| revolve`, or `\| loft` to create solids. |
-| `primitives-paths.md` | Primitives > Paths | ~200 | `spline` creates a smooth B-spline curve that **passes through** the specified points. It can be used as th... |
+| `primitives-paths.md` | Primitives > Paths | ~300 | `spline` creates a smooth B-spline curve that **passes through** the specified points. It can be used as th... |
 | `pipe-operations-modifiers.md` | Pipe Operations > Modifiers | ~300 | Operations are chained with `\|`: |
 | `pipe-operations-color.md` | Pipe Operations > Color | ~400 | Apply color to a shape. Colors are reflected per-part on export (glTF/GLB/STEP/OFF). |
 | `pipe-operations-boolean.md` | Pipe Operations > Boolean<br>Pipe Operations > Shape operators `+` `-` `*` | ~400 | Shapes can be placed with `at:`: |
 | `pipe-operations-place.md` | Pipe Operations > Place | ~200 | Place a 2D shape stored in a variable into the pipeline. Like `diff`/`union`/`inter`, it accepts variable r... |
 | `pipe-operations-extrude-revolve-sweep-loft.md` | Pipe Operations > Extrude / Revolve / Sweep / Loft | ~1300 | `draft:` specifies a draft angle (taper) in degrees. A positive value widens outward in the extrusion direc... |
 | `pipe-operations-cut-hole.md` | Pipe Operations > Cut / Hole | ~300 | `hole` can be used from both FaceSelection and PointSelection. |
-| `pipe-operations-face-edge-vertex-selection.md` | Pipe Operations > Face / Edge / Vertex Selection | ~600 | Selectors use short symbols or name aliases: |
+| `pipe-operations-face-edge-vertex-selection.md` | Pipe Operations > Face / Edge / Vertex Selection | ~700 | Selectors use short symbols or name aliases: |
 | `pipe-operations-workplane-points.md` | Pipe Operations > Workplane / Points | ~600 | Face selection implicitly creates a workplane for 2D operations. Use explicit `workplane` only when you nee... |
 | `pipe-operations-transform.md` | Pipe Operations > Transform | ~1700 | `mirror` reflects across the plane perpendicular to the specified axis. `"X"` mirrors across the YZ plane, ... |
 | `param-annotation.md` | @param Annotation (Basic syntax, Range shorthand, Option reference, Choices (dropdown), Practical example, CLI Override) | ~800 | Adding `@param` to a variable turns it into a parameter that can be controlled via a GUI customizer as a sl... |
