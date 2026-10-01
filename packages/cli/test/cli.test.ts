@@ -72,11 +72,22 @@ describe('CLI', () => {
     const { code } = run(['build', tmpFile, '-o', out, '--view', 'iso']);
     expect(code).toBe(0);
     const svg = readFileSync(out, 'utf-8');
-    // A single view carries no panel label and no size footer -- but it still
-    // draws the gnomon, whose axis names are <text> too.
+    // A single view carries no panel label, no size footer and, by default,
+    // no gnomon.
     expect(svg).not.toContain('>Iso</text>');
     expect(svg).not.toContain('(X×Y×Z)');
-    expect(svg).toContain('>Z</text>');
+    expect(svg).not.toContain('>Z</text>');
+    unlinkSync(out);
+    unlinkSync(tmpFile);
+  });
+
+  it('build --axes draws the XYZ gnomon', () => {
+    writeFileSync(tmpFile, 'box 100 60 40');
+    const out = join(tmpdir(), 'polyscript-cli-test-axes.svg');
+    const { code } = run(['build', tmpFile, '-o', out, '--view', 'iso', '--axes']);
+    expect(code).toBe(0);
+    const svg = readFileSync(out, 'utf-8');
+    for (const axis of ['X', 'Y', 'Z']) expect(svg).toContain(`>${axis}</text>`);
     unlinkSync(out);
     unlinkSync(tmpFile);
   });

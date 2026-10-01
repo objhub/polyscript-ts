@@ -146,6 +146,10 @@ export interface SvgExportOptions {
   columns?: number;
   /** Draw occluded edges dashed (default true). */
   showHidden?: boolean;
+  /** Draw a small XYZ axis gnomon in each panel. Default false: the panel
+   *  names (Front, Top, ...) already say the view, the gnomon's letters
+   *  crowded each other, and without its colours a PNG is greyscale. */
+  showAxes?: boolean;
   /** Edge sampling deflection in model units. Default ~0.2% of the bounding
    *  box diagonal, so the output does not depend on the model's scale. */
   deflection?: number;
@@ -162,7 +166,8 @@ export function exportSVGString(
   shape: Shape,
   options: SvgExportOptions = {},
 ): string {
-  const { views, ...rest } = options;
+  const { views, showAxes, ...opts } = options;
+  const rest = { ...opts, showGnomon: showAxes ?? false };
   if (views && views.length === 1) {
     return renderShapeSVG(oc, shape, views[0], rest);
   }
@@ -199,7 +204,8 @@ export function exportPNGBuffer(
   shape: Shape,
   options: PngExportOptions = {},
 ): Promise<Uint8Array> {
-  const { views, ...rest } = options;
+  const { views, showAxes, ...opts } = options;
+  const rest = { ...opts, showGnomon: showAxes ?? false };
   if (views && views.length === 1) {
     return renderShapePNG(oc, shape, views[0], rest);
   }

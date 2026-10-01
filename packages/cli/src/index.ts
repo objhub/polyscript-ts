@@ -430,6 +430,7 @@ program
   )
   .option('--view-size <px>', 'SVG/PNG panel size in px (default 240)', parseFloat)
   .option('--no-hidden', 'SVG/PNG: omit occluded edges instead of dashing them')
+  .option('--axes', 'SVG/PNG: draw an XYZ axis gnomon in each panel (off by default; a PNG without it is greyscale)')
   .option(
     '--png-scale <n>',
     'PNG supersampling, 1-4 (default 2). Sharpens lines; does not change the image size',
@@ -439,7 +440,7 @@ program
   .action(async (file: string, opts: {
     o?: string; format?: string; define?: string[]; paramsFile?: string;
     trace?: boolean; timing?: boolean; strict?: boolean; json?: boolean; meshDeflection?: number; verbose?: boolean;
-    asciiStl?: boolean; view?: string; viewSize?: number; hidden?: boolean; pngScale?: number;
+    asciiStl?: boolean; view?: string; viewSize?: number; hidden?: boolean; axes?: boolean; pngScale?: number;
   }) => {
     const name = basename(file);
     const m = await loadModel(file, opts);
@@ -495,6 +496,7 @@ program
             width: opts.viewSize,
             height: opts.viewSize,
             showHidden: opts.hidden,
+            showAxes: opts.axes,
             scale: opts.pngScale,
           },
         });

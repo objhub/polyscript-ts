@@ -190,7 +190,8 @@ poly build model.poly -o views.png
 ```
 
 Front / top / right / iso on one sheet, with OCCT hidden-line removal (occluded
-edges dashed) and a gnomon per panel. **Ask for `.png`, and Read that** -- the
+edges dashed) and the view's name on each panel; add `--axes` for an XYZ gnomon
+when the orientation is in doubt. **Ask for `.png`, and Read that** -- the
 same call with `-o views.svg` writes thousands of path coordinates, which as
 text costs thousands of tokens against a picture's ~320. This is for the two things numbers
 genuinely cannot express: **is it the right shape**, and **is it the right way
