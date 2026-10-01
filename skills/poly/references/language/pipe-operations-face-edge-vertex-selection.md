@@ -23,12 +23,13 @@ Selectors use short symbols or name aliases:
 | `<X` | minimum (left) | `left` |
 | `>Y` | maximum (back) | `back` |
 | `<Y` | minimum (front) | `front` |
-| `=Z` | parallel to Z | |
-| `=X` | parallel to X | |
-| `=Y` | parallel to Y | |
-| `+Z` | perpendicular to Z (= side faces) | |
-| `+X` | perpendicular to X | |
-| `+Y` | perpendicular to Y | |
+| `=Z` | parallel to the Z axis (edges running along Z; faces containing Z = the sides) | |
+| `=X`, `=Y` | parallel to the X / Y axis | |
+| `=XY` | parallel to the XY plane (horizontal edges; the top and bottom faces) | |
+| `=YZ`, `=XZ` | parallel to the YZ / XZ plane | |
+| `+Z` | faces that face up (normal +Z) | |
+| `-Z` | faces that face down (normal -Z) | |
+| `+X`, `-X`, `+Y`, `-Y` | faces whose normal points that way | |
 
 > **Note**: `+Z` selects faces whose normal is perpendicular to Z -- i.e., **side faces**, not the top or bottom. To select the top or bottom face, use `>Z` / `<Z`.
 

@@ -180,15 +180,21 @@ export class Lexer {
       return this.readIdentifier();
     }
 
-    // Selector: >X, >Y, >Z, <X, <Y, <Z, =X, =Y, =Z, +X, +Y, +Z
-    // Matched when symbol is immediately followed by an axis letter (no space).
+    // Selector: an operator (> < = + -) immediately followed by an axis
+    // (X Y Z) or a plane (XY YZ XZ, either order), and then by nothing that
+    // could continue a word. `>Z` selects; `> Z` compares; `>Zoom` is neither.
     const ch2 = this.peek(1);
-    if ((ch === '>' || ch === '<' || ch === '=' || ch === '+') &&
-        (ch2 === 'X' || ch2 === 'Y' || ch2 === 'Z')) {
-      const token = this.makeToken(TokenType.Selector, ch + ch2);
-      this.advance();
-      this.advance();
-      return token;
+    const isAxis = (c: string) => c === 'X' || c === 'Y' || c === 'Z';
+    if ((ch === '>' || ch === '<' || ch === '=' || ch === '+' || ch === '-') && isAxis(ch2)) {
+      const ch3 = this.peek(2);
+      // Planes are spelt as workplane spells them: XY, YZ, XZ.
+      const axes = ['XY', 'YZ', 'XZ'].includes(ch2 + ch3) ? ch2 + ch3 : ch2;
+      const after = this.peek(1 + axes.length);
+      if (!this.isIdentPart(after)) {
+        const token = this.makeToken(TokenType.Selector, ch + axes);
+        for (let i = 0; i <= axes.length; i++) this.advance();
+        return token;
+      }
     }
 
     // Two-character operators

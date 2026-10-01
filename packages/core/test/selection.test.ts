@@ -541,7 +541,7 @@ describe('selection', () => {
           default: return null;
         }
       };
-      const result = selectItems(null as any, edges, '|Z', centerFn, dirFn);
+      const result = selectItems(null as any, edges, '=Z', centerFn, dirFn);
       expect(result.map((e: any) => e.id)).toEqual(['e1', 'e4']);
     });
 
@@ -557,7 +557,7 @@ describe('selection', () => {
           default: return null;
         }
       };
-      const result = selectItems(null as any, edges, '|X', centerFn, dirFn);
+      const result = selectItems(null as any, edges, '=X', centerFn, dirFn);
       expect(result.map((e: any) => e.id)).toEqual(['e2']);
     });
 
@@ -589,79 +589,48 @@ describe('selection', () => {
       expect(result.map((f: any) => f.id)).toEqual(['f3']);
     });
 
-    // selectorToCadQuery conversion
-    function selectorToCadQuery(sel: string): string {
-      const symbol = sel[0];
-      const axis = sel.slice(1);
-      switch (symbol) {
-        case '=': return `|${axis}`;
-        case '+': return `#${axis}`;
-        default: return sel;
+    // `=` is parallel in the geometric sense, so it reads the other way round
+    // for faces (which are known by their normal) than for edges: a face is
+    // parallel to an axis when its normal is perpendicular to it, and
+    // parallel to a plane when its normal is parallel to the plane's normal.
+    const faceDir = (item: any) => {
+      switch (item.id) {
+        case 'top': return { x: 0, y: 0, z: 1 };
+        case 'bottom': return { x: 0, y: 0, z: -1 };
+        case 'right': return { x: 1, y: 0, z: 0 };
+        case 'left': return { x: -1, y: 0, z: 0 };
+        case 'side': return { x: 1, y: 0, z: 0 };
+        default: return null;
       }
-    }
+    };
+    const origin = () => ({ x: 0, y: 0, z: 0 });
+    const ids = (r: any[]) => r.map((f: any) => f.id);
 
-    it('converts =Z to |Z', () => {
-      expect(selectorToCadQuery('=Z')).toBe('|Z');
-    });
-
-    it('converts =X to |X', () => {
-      expect(selectorToCadQuery('=X')).toBe('|X');
-    });
-
-    it('leaves >Z unchanged', () => {
-      expect(selectorToCadQuery('>Z')).toBe('>Z');
-    });
-
-    it('leaves <X unchanged', () => {
-      expect(selectorToCadQuery('<X')).toBe('<X');
-    });
-
-    // Perpendicular selector (`+A` in source, `#A` internally).
-    //
-    // `#A` keeps the items whose normal or direction is PERPENDICULAR to the
-    // axis -- on a box, `faces "+Z"` is the four upright sides. It used to test
-    // the opposite (normal parallel to the axis), which made `+Z` a synonym for
-    // `=Z` and left no way to select the sides at all; these tests asserted
-    // that behaviour and so kept it alive (devel/lessons.md 2026-09-07).
-    it('selectItems handles #Z -- keeps the faces whose normal is perpendicular to Z', () => {
+    it('=Z on faces keeps the faces that contain the Z direction (the sides)', () => {
       const faces = [{ id: 'top' }, { id: 'side' }, { id: 'bottom' }];
-      const centerFn = () => ({ x: 0, y: 0, z: 0 });
-      const dirFn = (item: any) => {
-        switch (item.id) {
-          case 'top': return { x: 0, y: 0, z: 1 };
-          case 'side': return { x: 1, y: 0, z: 0 };
-          case 'bottom': return { x: 0, y: 0, z: -1 };
-          default: return null;
-        }
-      };
-      const result = selectItems(null as any, faces, '#Z', centerFn, dirFn);
-      expect(result.map((f: any) => f.id)).toEqual(['side']);
+      expect(ids(selectItems(null as any, faces, '=Z', origin, faceDir, 'face'))).toEqual(['side']);
     });
 
-    it('#Z and |Z are opposites, not synonyms', () => {
-      const faces = [{ id: 'top' }, { id: 'side' }];
-      const centerFn = () => ({ x: 0, y: 0, z: 0 });
-      const dirFn = (item: any) =>
-        item.id === 'top' ? { x: 0, y: 0, z: 1 } : { x: 1, y: 0, z: 0 };
-      expect(selectItems(null as any, faces, '#Z', centerFn, dirFn).map((f: any) => f.id))
-        .toEqual(['side']);
-      expect(selectItems(null as any, faces, '|Z', centerFn, dirFn).map((f: any) => f.id))
-        .toEqual(['top']);
+    it('=XY on faces keeps the faces parallel to the XY plane (top and bottom)', () => {
+      const faces = [{ id: 'top' }, { id: 'side' }, { id: 'bottom' }];
+      expect(ids(selectItems(null as any, faces, '=XY', origin, faceDir, 'face'))).toEqual(['top', 'bottom']);
     });
 
-    it('selectItems handles #X -- keeps the faces whose normal is perpendicular to X', () => {
+    it('=X on faces keeps the faces that contain the X direction', () => {
       const faces = [{ id: 'top' }, { id: 'right' }, { id: 'left' }];
-      const centerFn = () => ({ x: 0, y: 0, z: 0 });
-      const dirFn = (item: any) => {
-        switch (item.id) {
-          case 'top': return { x: 0, y: 0, z: 1 };
-          case 'right': return { x: 1, y: 0, z: 0 };
-          case 'left': return { x: -1, y: 0, z: 0 };
-          default: return null;
-        }
-      };
-      const result = selectItems(null as any, faces, '#X', centerFn, dirFn);
-      expect(result.map((f: any) => f.id)).toEqual(['top']);
+      expect(ids(selectItems(null as any, faces, '=X', origin, faceDir, 'face'))).toEqual(['top']);
+    });
+
+    it('+Z / -Z on faces select by the normal', () => {
+      const faces = [{ id: 'top' }, { id: 'side' }, { id: 'bottom' }];
+      expect(ids(selectItems(null as any, faces, '+Z', origin, faceDir, 'face'))).toEqual(['top']);
+      expect(ids(selectItems(null as any, faces, '-Z', origin, faceDir, 'face'))).toEqual(['bottom']);
+    });
+
+    it('+Z on edges is an error: an edge has no front', () => {
+      const edges = [{ id: 'e' }];
+      expect(() => selectItems(null as any, edges, '+Z', origin, () => ({ x: 0, y: 0, z: 1 }), 'edge'))
+        .toThrow(/an edge has no front/);
     });
   });
 });

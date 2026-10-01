@@ -7,7 +7,7 @@
  * actual box and count what each selector picked, so the expectations are the
  * geometry rather than a mock's opinion of it.
  *
- * The reference is SPEC.md ("=X, =Y, =Z | 法線が指定軸に平行", "+X, +Y, +Z |
+ * The reference is SPEC.md ("=X, =Y, =Z | 指定軸に平行", "=XY | 指定平面に平行", "+X, +Y, +Z |
  * 法線が指定軸に垂直"), which the Python kernel and CadQuery both implement.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -52,27 +52,31 @@ describe('face selectors on a 60x40x30 box', () => {
     expect(selectedFaceArea(`${BOX} | faces ">Z"`)).toEqual({ count: 1, area: 2400, total: 6 });
   });
 
-  it('=Z is the two faces whose normal runs along Z: top and bottom', () => {
-    expect(selectedFaceArea(`${BOX} | faces "=Z"`)).toEqual({ count: 2, area: 4800, total: 6 });
+  it('=Z is the four upright sides: the faces that contain the Z direction', () => {
+    expect(selectedFaceArea(`${BOX} | faces =Z`)).toEqual({ count: 4, area: 6000, total: 6 });
   });
 
-  it('+Z is the four upright sides, not the top and bottom', () => {
-    // 2 * 1800 (+-Y) + 2 * 1200 (+-X). This is the whole point of `+`: without
-    // it there is no way to name the sides of a box.
-    expect(selectedFaceArea(`${BOX} | faces "+Z"`)).toEqual({ count: 4, area: 6000, total: 6 });
+  it('=XY is the top and bottom: the faces parallel to the XY plane', () => {
+    expect(selectedFaceArea(`${BOX} | faces =XY`)).toEqual({ count: 2, area: 4800, total: 6 });
+    expect(selectedFaceArea(`${BOX} | faces =YZ`)).toEqual({ count: 2, area: 2400, total: 6 });
   });
 
-  it('+X excludes the two faces whose normal runs along X', () => {
-    // 2 * 2400 (+-Z) + 2 * 1800 (+-Y)
-    expect(selectedFaceArea(`${BOX} | faces "+X"`)).toEqual({ count: 4, area: 8400, total: 6 });
+  it('+Z / -Z select faces by the way they face', () => {
+    expect(selectedFaceArea(`${BOX} | faces +Z`)).toEqual({ count: 1, area: 2400, total: 6 });
+    expect(selectedFaceArea(`${BOX} | faces -Z`)).toEqual({ count: 1, area: 2400, total: 6 });
+    expect(select(`${BOX} | faces +Z`).selectedFaces.map((f) => faceCenter(oc, f).z)).toEqual([15]);
+    expect(select(`${BOX} | faces -Z`).selectedFaces.map((f) => faceCenter(oc, f).z)).toEqual([-15]);
   });
 
-  it('+Z and =Z are opposites and never overlap', () => {
-    const perp = select(`${BOX} | faces "+Z"`).selectedFaces.map((f) => faceCenter(oc, f).z);
-    const para = select(`${BOX} | faces "=Z"`).selectedFaces.map((f) => faceCenter(oc, f).z);
-    // The sides are centred at z=0; top and bottom at +-15.
-    expect(perp.every((z) => Math.abs(z) < 1e-6)).toBe(true);
-    expect(para.map((z) => Math.round(z)).sort((a, b) => a - b)).toEqual([-15, 15]);
+  it('=X is the four faces that contain the X direction', () => {
+    expect(selectedFaceArea(`${BOX} | faces =X`)).toEqual({ count: 4, area: 8400, total: 6 });
+  });
+
+  it('=Z and =XY partition the faces of a box', () => {
+    const sides = select(`${BOX} | faces =Z`).selectedFaces.map((f) => faceCenter(oc, f).z);
+    const caps = select(`${BOX} | faces =XY`).selectedFaces.map((f) => faceCenter(oc, f).z);
+    expect(sides.every((z) => Math.abs(z) < 1e-6)).toBe(true);
+    expect(caps.map((z) => Math.round(z)).sort()).toEqual([-15, 15]);
   });
 });
 
@@ -86,12 +90,13 @@ describe('edge selectors on a 60x40x30 box', () => {
     expect(selectedEdgeCount(`${BOX} | edges "=Z"`)).toEqual({ count: 4, total: 12 });
   });
 
-  it('+Z is the eight horizontal edges', () => {
-    expect(selectedEdgeCount(`${BOX} | edges "+Z"`)).toEqual({ count: 8, total: 12 });
+  it('=XY is the eight horizontal edges; +Z on an edge is an error', () => {
+    expect(selectedEdgeCount(`${BOX} | edges =XY`)).toEqual({ count: 8, total: 12 });
+    expect(() => select(`${BOX} | edges +Z`)).toThrow(/an edge has no front/);
   });
 });
 
-describe('selector spellings reach the kernel once (issue: unquoted =Z warned selector.legacy)', () => {
+describe('selector spellings are read as written (issue: unquoted =Z warned as the kernel spelling)', () => {
   // SelectorLit used to evaluate to the kernel spelling (`|Z`), and the
   // boundary translated again -- so the canonical unquoted form arrived
   // looking like the deprecated internal one and warned, while the quoted
@@ -113,9 +118,9 @@ describe('selector spellings reach the kernel once (issue: unquoted =Z warned se
     expect(warningsOf(src)).toEqual([]);
   });
 
-  it('the kernel spelling inside a string is the one that warns', () => {
-    expect(warningsOf('box 10 20 30 | edges "|Z" | fillet 2')).toEqual(['selector.legacy']);
-    expect(warningsOf('box 10 20 30 | faces "#Z"')).toEqual(['selector.legacy']);
+  it('the old CadQuery spellings are unknown selectors, nothing more', () => {
+    expect(warningsOf('box 10 20 30 | edges "|Z"')).toEqual(['selector.unknown']);
+    expect(warningsOf('box 10 20 30 | faces "#Z"')).toEqual(['selector.unknown']);
   });
 
   it('unquoted and quoted =Z select the same edges', () => {

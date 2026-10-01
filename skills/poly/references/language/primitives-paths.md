@@ -25,6 +25,6 @@ spline points
 spline [(0,0,0), (10,5,5), (20,0,10)] | sweep (circle 3)
 ```
 
-> **Note**: The list convention for `bezier`/`spline` differs by context. As standalone commands (`bezier [...] | sweep`, etc.), the list includes the start point as its first element. Inside `sketch`/`wire` segments, however, the start point is implicitly inherited from the preceding segment's endpoint (the current point), so the list contains only the control/through-points and the end point. This follows the industry-standard convention used by CadQuery and SVG paths.
+> **`>Z` vs `+Z`**: `>Z` selects by position (the highest face), `+Z` by direction (every face that faces up). On a box both are the one top face; on a stepped part `+Z` returns several. `+` / `-` apply to faces only; on edges they are an error. There is no "perpendicular" selector: an edge perpendicular to Z is `=XY`.
 
 

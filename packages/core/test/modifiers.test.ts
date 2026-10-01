@@ -813,10 +813,12 @@ describe('modifiers', () => {
   // Perpendicular selector integration
   // ===========================================================================
 
-  describe('integration: perpendicular selector', () => {
-    // `#A` keeps what is perpendicular to the axis: on a box, `faces "+Z"` is
-    // the four upright sides, not the top and bottom.
-    it('selectItems handles # operator -- the normal is perpendicular to the axis', () => {
+  describe('integration: parallel selector on faces', () => {
+    // `=A` is parallel in the geometric sense: a face is parallel to an axis
+    // when it contains that direction, i.e. its normal is perpendicular to
+    // it. On a box, `faces =Z` is the four upright sides, not the top and
+    // bottom (those are `=XY`, parallel to the XY plane).
+    it('selectItems =Z keeps the faces whose normal is perpendicular to Z', () => {
       const faces = [
         { id: 'top' },
         { id: 'side' },
@@ -832,11 +834,11 @@ describe('modifiers', () => {
         }
       };
 
-      const result = selectItems(null as any, faces, '#Z', centerFn, dirFn);
+      const result = selectItems(null as any, faces, '=Z', centerFn, dirFn, 'face');
       expect(result.map((f: any) => f.id)).toEqual(['side']);
     });
 
-    it('selectItems handles #X -- the normal is perpendicular to X', () => {
+    it('selectItems =X keeps the faces whose normal is perpendicular to X', () => {
       const faces = [
         { id: 'top' },
         { id: 'right' },
@@ -852,7 +854,7 @@ describe('modifiers', () => {
         }
       };
 
-      const result = selectItems(null as any, faces, '#X', centerFn, dirFn);
+      const result = selectItems(null as any, faces, '=X', centerFn, dirFn, 'face');
       expect(result.map((f: any) => f.id)).toEqual(['top']);
     });
   });

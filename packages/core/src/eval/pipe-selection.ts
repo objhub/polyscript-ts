@@ -6,7 +6,6 @@ import type { Expression, FacesSelect, EdgesSelect, VertsSelect, PointsSelect } 
 import type { WpState } from '../ocp-kernel.js';
 import { wpFaces, wpEdges, wpVertices, wpPushPoints, wpWorkplane } from '../ocp-kernel.js';
 import { asString, type Value } from './types.js';
-import { pushWarning } from '../diagnostics.js';
 
 export type PlacementToPointsFn = (val: Value) => [number, number][];
 
@@ -16,38 +15,16 @@ const SELECTOR_NAME_ALIASES: Record<string, string> = {
   front: '<Y', back: '>Y',
 };
 
-const SELECTOR_SYMBOL_MAP: Record<string, string> = {
-  '>': '>', '<': '<', '=': '|', '+': '#',
-};
-
-/** Translate a selector to the kernel's internal form.
- *
- * A compound selector written as one string (`">Z and =X"`) has to be
- * translated part by part. Translating only the leading symbol would leave
- * `=X` in place, which the kernel does not recognise -- and an unrecognised
- * part used to mean "no filtering", i.e. silently selecting everything.
- *
- * Mirrors `_selector_to_cadquery` in the Python evaluator.
- */
+/** Resolve name aliases, part by part for the deprecated joined string
+ *  form (`">Z and top"`). The symbols need no translation: the selector
+ *  engine reads the language's own spelling. */
 function normalizeSelector(sel: string): string {
   for (const joiner of [' and ', ' or ']) {
     if (sel.includes(joiner)) {
       return sel.split(joiner).map(part => normalizeSelector(part.trim())).join(joiner);
     }
   }
-  const named = SELECTOR_NAME_ALIASES[sel];
-  if (named) sel = named;
-  const mapped = SELECTOR_SYMBOL_MAP[sel[0]];
-  if (sel.length >= 2 && mapped) return mapped + sel.slice(1);
-  // The kernel's own spelling, reachable only through a quoted string. It
-  // works, so it is not `selector.unknown` (which means nothing was filtered).
-  if (sel.length >= 2 && (sel[0] === '|' || sel[0] === '#')) {
-    pushWarning(`selector '${sel}' is the kernel's internal spelling, not PolyScript syntax`, {
-      code: 'selector.legacy',
-      hint: `write ${sel[0] === '|' ? '=' : '+'}${sel.slice(1)} without quotes`,
-    });
-  }
-  return sel;
+  return SELECTOR_NAME_ALIASES[sel] ?? sel;
 }
 
 /** Build a compound selector string from args.

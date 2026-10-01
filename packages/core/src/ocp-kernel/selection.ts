@@ -38,7 +38,7 @@ export function wpFaces(s: WpState, selector?: string, tagName?: string): WpStat
   if (!s.shape) return s;
   const allFaces = getFaces(oc, s.shape);
   const selected = selector
-    ? selectItems(oc, allFaces, selector, f => faceCenter(oc, f), f => faceNormal(oc, f))
+    ? selectItems(oc, allFaces, selector, f => faceCenter(oc, f), f => faceNormal(oc, f), 'face')
     : allFaces;
   checkSelection('faces', selector, selected, allFaces.length);
   return cloneState(s, { selectedFaces: selected, selectedEdges: [] });
@@ -52,7 +52,7 @@ export function wpEdges(s: WpState, selector?: string, tagName?: string): WpStat
   if (!s.shape) return s;
   const allEdges = getEdges(oc, s.shape);
   const selected = selector
-    ? selectItems(oc, allEdges, selector, e => edgeCenter(oc, e), e => edgeDirection(oc, e))
+    ? selectItems(oc, allEdges, selector, e => edgeCenter(oc, e), e => edgeDirection(oc, e), 'edge')
     : allEdges;
   checkSelection('edges', selector, selected, allEdges.length);
   return cloneState(s, { selectedEdges: selected, selectedFaces: [] });
@@ -92,7 +92,7 @@ export function wpVertices(s: WpState, selector?: string, tagName?: string): WpS
   if (!s.shape) return s;
   const allVerts = getVertices(oc, s.shape);
   const selected = selector
-    ? selectItems(oc, allVerts, selector, v => vertexPoint(oc, v))
+    ? selectItems(oc, allVerts, selector, v => vertexPoint(oc, v), undefined, 'vertex')
     : allVerts;
   checkSelection('vertices', selector, selected, allVerts.length);
   return cloneState(s, { selectedVertices: selected });

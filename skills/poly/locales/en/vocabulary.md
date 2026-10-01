@@ -69,12 +69,12 @@ the operation that does it. The syntax itself is in the
 |---|---|
 | top | `>Z` or `top` |
 | bottom | `<Z` or `bottom` |
-| the sides | `+Z` (faces whose normal is perpendicular to Z) |
+| the sides | `=Z` (faces that contain the Z direction) |
 | right / left | `>X` / `<X` |
 | front / back | `<Y` (front) / `>Y` (back) |
 | the vertical edges (corners) | `edges =Z` |
 | the top rim | `edges >Z` |
 | all of them | leave the selector out |
 
-`+Z` is the sides, not the top. `front` is the **minus** side. Both are easy to
+`=Z` is the sides, not the top (top + bottom is `=XY`). `front` is the **minus** side. Both are easy to
 get backwards.

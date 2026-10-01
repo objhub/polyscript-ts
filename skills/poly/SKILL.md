@@ -108,7 +108,7 @@ Read the trace table and confirm all of:
       means it; the codes to recognise are `selector.empty` (matched nothing)
       and `selector.unknown` (unparsable, so *nothing* was filtered)
 - [ ] the `where` column is the face you meant. This is what separates
-      `faces >Z` (the top: `n=+Z`) from `faces +Z` (the sides: no shared
+      `faces >Z` (the top: `n=+Z`) from `faces =Z` (the sides: no shared
       normal), and it is the one mistake numbers alone used to miss:
       `c=` is the centroid of the selection, `n=`/`d=` its normal or direction,
       `a=` its area

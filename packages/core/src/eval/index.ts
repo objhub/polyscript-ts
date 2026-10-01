@@ -128,11 +128,9 @@ export class Evaluator {
       // Literals
       'NumberLit': (e) => (e as { value: number }).value,
       'StringLit': (e) => (e as { value: string }).value,
-      // A selector's value is its source form (`=Z`); the translation to the
-      // kernel's spelling happens once, at the kernel boundary (normalizeSelector
-      // in pipe-selection.ts). Translating here too made the unquoted form reach
-      // that boundary already translated, where it was mistaken for the
-      // deprecated internal spelling and warned selector.legacy.
+      // A selector's value is its source form (`=Z`, `=XY`): the selector
+      // engine reads the language's own spelling, there is no kernel spelling
+      // to translate to.
       'SelectorLit': (e) => (e as { value: string }).value,
       'BoolConst': (e) => (e as { value: boolean }).value,
       // References

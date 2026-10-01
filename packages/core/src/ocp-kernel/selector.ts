@@ -4,8 +4,8 @@
  */
 
 import type { OC, Pnt, Dir, Vec } from './types.js';
-import { axisComponent, vecComponent } from './geometry.js';
-import { pushWarning } from '../diagnostics.js';
+import { axisComponent } from './geometry.js';
+import { pushWarning, codedError } from '../diagnostics.js';
 
 // _oc is reserved for selector kinds that need OCP geometry inspection
 // (e.g. surface curvature, parameter range checks). Current selectors only
@@ -31,12 +31,31 @@ import { pushWarning } from '../diagnostics.js';
  * have.
  */
 export function selectorSourceForm(sel: string): string {
-  const symbols = (s: string) => s.replace(/(^|(?<= ))\|/g, '=').replace(/(^|(?<= ))#/g, '+');
   // The source spells AND as juxtaposition and OR as a list; the joined
   // `and` / `or` words are the internal (and the deprecated quoted) form.
-  const alternatives = sel.split(' or ').map(part => symbols(part.split(' and ').join(' ')));
+  const alternatives = sel.split(' or ').map(part => part.split(' and ').join(' '));
   return alternatives.length > 1 ? `[${alternatives.join(', ')}]` : alternatives[0];
 }
+
+const HINT = "a selector is an operator plus an axis or plane: '>Z' topmost, '<X' leftmost, "
+  + "'=Z' parallel to Z (upright edges, side faces), '=XY' parallel to the XY plane "
+  + "(horizontal edges, top and bottom faces), '+Z' / '-Z' faces that face up / down";
+
+const AXIS_VEC: Record<string, Vec> = { X: { x: 1, y: 0, z: 0 }, Y: { x: 0, y: 1, z: 0 }, Z: { x: 0, y: 0, z: 1 } };
+
+/** The unit vector a selector's axis or plane stands for: an axis is its own
+ *  direction, a plane is its normal (XY -> Z). Null for anything else. */
+function selectorVector(axes: string): { vec: Vec; plane: boolean } | null {
+  const letters = axes.toUpperCase();
+  if (letters.length === 1 && AXIS_VEC[letters]) return { vec: AXIS_VEC[letters], plane: false };
+  const planeNormal: Record<string, string> = { XY: 'Z', YZ: 'X', XZ: 'Y' };
+  const n = planeNormal[letters];
+  return n ? { vec: AXIS_VEC[n], plane: true } : null;
+}
+
+const dot = (a: Vec, b: Vec) => a.x * b.x + a.y * b.y + a.z * b.z;
+const crossMag = (a: Vec, b: Vec) =>
+  Math.hypot(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
 
 export function selectItems(
   _oc: OC,
@@ -44,6 +63,7 @@ export function selectItems(
   selector: string,
   centerFn: (item: any) => Pnt,
   directionFn?: (item: any) => Vec | Dir | null,
+  kind: 'face' | 'edge' | 'vertex' = 'edge',
 ): any[] {
   if (!items.length) return items;
   const sel = selector.trim();
@@ -54,7 +74,7 @@ export function selectItems(
     const seen = new Set<any>();
     const result: any[] = [];
     for (const part of parts) {
-      for (const item of selectItems(_oc, items, part.trim(), centerFn, directionFn)) {
+      for (const item of selectItems(_oc, items, part.trim(), centerFn, directionFn, kind)) {
         if (!seen.has(item)) {
           seen.add(item);
           result.push(item);
@@ -69,7 +89,7 @@ export function selectItems(
     const parts = sel.split(' and ');
     let result = items;
     for (const part of parts) {
-      result = selectItems(_oc, result, part.trim(), centerFn, directionFn);
+      result = selectItems(_oc, result, part.trim(), centerFn, directionFn, kind);
     }
     return result;
   }
@@ -79,87 +99,57 @@ export function selectItems(
     // as success: a typo like faces "Z" selects all six faces of a box.
     // Mirror the Python kernel's warning so --strict can catch it.
     pushWarning(`unrecognized selector '${selectorSourceForm(sel)}' -- no filtering applied, all ${items.length} items selected`,
-      { code: 'selector.unknown', hint: "a selector is an operator plus an axis: '>Z' topmost, '<X' leftmost, '=Z' parallel to Z, '+Z' perpendicular to Z" });
+      { code: 'selector.unknown', hint: HINT });
     return items;
   }
   const op = sel[0];
-  const axis = sel[1].toUpperCase();
+  const axes = sel.slice(1);
+  const target = selectorVector(axes);
 
-  if (op === '>') {
+  if ((op === '>' || op === '<') && target && !target.plane) {
+    const axis = axes.toUpperCase();
     const vals = items.map(item => ({ item, v: axisComponent(centerFn(item), axis) }));
-    const maxVal = Math.max(...vals.map(x => x.v));
-    return vals.filter(x => Math.abs(x.v - maxVal) < 1e-6).map(x => x.item);
+    const extreme = op === '>' ? Math.max(...vals.map(x => x.v)) : Math.min(...vals.map(x => x.v));
+    return vals.filter(x => Math.abs(x.v - extreme) < 1e-6).map(x => x.item);
   }
 
-  if (op === '<') {
-    const vals = items.map(item => ({ item, v: axisComponent(centerFn(item), axis) }));
-    const minVal = Math.min(...vals.map(x => x.v));
-    return vals.filter(x => Math.abs(x.v - minVal) < 1e-6).map(x => x.item);
-  }
-
-  if (op === '|' && directionFn) {
-    const axisVec: Vec = axis === 'X' ? { x: 1, y: 0, z: 0 } :
-                         axis === 'Y' ? { x: 0, y: 1, z: 0 } :
-                                        { x: 0, y: 0, z: 1 };
+  // `=`: parallel, in the geometric sense -- the edge or the face itself,
+  // not the face's normal (CadQuery's `|Z`, which this once mirrored, is
+  // normal-based: `faces |Z` is the top and bottom, which reads backwards).
+  //   =Z   an edge running along Z; a face that contains the Z direction
+  //        (the sides of a box)
+  //   =XY  an edge lying in an XY-parallel plane; a face parallel to the
+  //        XY plane (the top and bottom)
+  if (op === '=' && target && directionFn) {
+    const { vec, plane } = target;
     const result: any[] = [];
     for (const item of items) {
       const d = directionFn(item);
-      if (d) {
-        // Cross product magnitude
-        const cx = d.y * axisVec.z - d.z * axisVec.y;
-        const cy = d.z * axisVec.x - d.x * axisVec.z;
-        const cz = d.x * axisVec.y - d.y * axisVec.x;
-        const crossMag = Math.sqrt(cx * cx + cy * cy + cz * cz);
-        if (crossMag < 0.1) result.push(item);
-      }
+      if (!d) continue;
+      // An edge's direction is parallel to an axis / lies in a plane; a
+      // face's normal does the opposite: it is perpendicular to an axis the
+      // face contains, and parallel to the normal of a plane the face lies in.
+      const alongVec = kind === 'face' ? plane : !plane;
+      if (alongVec ? crossMag(d, vec) < 0.1 : Math.abs(dot(d, vec)) < 0.1) result.push(item);
     }
     return result;
   }
 
-  // # = the normal (or edge direction) is PERPENDICULAR to the axis.
-  // Internal form of SPEC's `+`: `faces +Z` is the four upright sides of a
-  // box, not its top and bottom (SPEC.md, "+X, +Y, +Z | 法線が指定軸に垂直").
-  //
-  // This used to test `|dot| > 0.9` -- the normal parallel to the axis -- on
-  // the reasoning that "a face is perpendicular to Z when its normal is
-  // parallel to Z". That is a different sense of perpendicular from the one
-  // SPEC, the Python kernel and CadQuery all use, and it made `+Z` a synonym
-  // for `=Z` on faces: both returned the top and the bottom, so there was no
-  // way to select the sides at all (devel/lessons.md 2026-09-07).
-  if (op === '#' && directionFn) {
-    const axisVec: Vec = axis === 'X' ? { x: 1, y: 0, z: 0 } :
-                         axis === 'Y' ? { x: 0, y: 1, z: 0 } :
-                                        { x: 0, y: 0, z: 1 };
-    const result: any[] = [];
-    for (const item of items) {
-      const d = directionFn(item);
-      if (d) {
-        const dot = Math.abs(d.x * axisVec.x + d.y * axisVec.y + d.z * axisVec.z);
-        if (dot < 0.1) result.push(item);
-      }
+  // `+Z` / `-Z`: the way a face faces. An edge has no front.
+  if ((op === '+' || op === '-') && target && !target.plane && directionFn) {
+    if (kind !== 'face') {
+      throw codedError('eval.error',
+        `${op}${axes} selects faces by the direction they face; an edge has no front`,
+        `for edges use =${axes} (along ${axes}) or a plane like =XY (lying flat)`);
     }
-    return result;
-  }
-
-  if (op === '+' && directionFn) {
-    const result: any[] = [];
-    for (const item of items) {
+    const sign = op === '+' ? 1 : -1;
+    return items.filter(item => {
       const d = directionFn(item);
-      if (d && vecComponent(d, axis) > 0.5) result.push(item);
-    }
-    return result;
-  }
-
-  if (op === '-' && directionFn) {
-    const result: any[] = [];
-    for (const item of items) {
-      const d = directionFn(item);
-      if (d && vecComponent(d, axis) < -0.5) result.push(item);
-    }
-    return result;
+      return d !== null && sign * dot(d, target.vec) > 0.5;
+    });
   }
 
   pushWarning(`unrecognized selector '${selectorSourceForm(sel)}' -- no filtering applied, all ${items.length} items selected`,
-      { code: 'selector.unknown', hint: "a selector is an operator plus an axis: '>Z' topmost, '<X' leftmost, '=Z' parallel to Z, '+Z' perpendicular to Z" });
+      { code: 'selector.unknown', hint: HINT });
   return items;
 }
