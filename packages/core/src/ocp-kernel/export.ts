@@ -189,8 +189,9 @@ export async function exportSVG(
 export interface PngExportOptions extends SvgExportOptions {
   /** Supersampling factor, 1-4 (default 2). The drawing is rasterised this
    *  much larger and filtered down, which is what keeps a 1 px line legible.
-   *  It does not change the image's dimensions. */
-  scale?: number;
+   *  It does not change the image's dimensions. Same name as occt-wasm's
+   *  PngViewOptions.supersample (it was `scale` before occt-wasm 5.5.0). */
+  supersample?: number;
 }
 
 /** Render a Shape as a PNG line drawing: the same picture {@link exportSVGString}

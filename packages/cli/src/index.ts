@@ -497,7 +497,7 @@ program
             height: opts.viewSize,
             showHidden: opts.hidden,
             showAxes: opts.axes,
-            scale: opts.pngScale,
+            supersample: opts.pngScale,
           },
         });
       } catch (e) {
