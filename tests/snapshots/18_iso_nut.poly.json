@@ -11,16 +11,16 @@
       14.8
     ]
   },
-  "volume": 4614.7431,
+  "volume": 4614.3575,
   "topology": {
-    "faces": 31,
-    "edges": 75,
-    "vertices": 46
+    "faces": 46,
+    "edges": 98,
+    "vertices": 54
   },
   "source": {
     "implementation": "typescript",
-    "poly_version": "0.1.4",
-    "kernel": "occt-wasm 4.3.2-ps3",
-    "generated_at": "2026-09-16T22:40:53.161Z"
+    "poly_version": "0.3.1",
+    "kernel": "occt-wasm 5.5.0-ps2",
+    "generated_at": "2026-10-02T13:13:58.831Z"
   }
 }

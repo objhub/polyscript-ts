@@ -24,7 +24,7 @@
  * and say so in the commit. Never run this to make a red test green.
  */
 import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join, dirname, basename } from 'node:path';
+import { join, dirname, basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
@@ -36,7 +36,9 @@ const EXAMPLES_DIR = join(HERE, 'examples');
 const REGRESSIONS_DIR = join(HERE, 'regressions');
 const CORPUS_DIRS = [EXAMPLES_DIR, REGRESSIONS_DIR];
 const SNAPSHOT_DIR = join(HERE, 'snapshots');
-const POLY = process.env.POLY ?? join(HERE, '..', 'packages', 'cli', 'dist', 'bin', 'poly');
+// Resolved to an absolute path: the binary is spawned with each example's
+// directory as cwd, so a relative POLY= (build/bin/poly) would not be found.
+const POLY = resolve(process.env.POLY ?? join(HERE, '..', 'packages', 'cli', 'dist', 'bin', 'poly'));
 
 if (!existsSync(POLY)) {
   console.error(`poly binary not found at ${POLY} -- run \`make binary\` or set POLY=`);

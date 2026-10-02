@@ -22,47 +22,18 @@ pitch = 2
 r = 8          # shank radius: d16 / 2
 shank = 30     # shank length
 
-# Threaded length, measured from the tip, as JIS B 1180 / ISO 4014 measure `b`.
-# A partly threaded hex bolt has b = 2d + 6 for lengths up to 125 mm, so an
-# M16 would be b = 38 -- longer than this shank, which is why a bolt this short
-# is fully threaded (JIS B 1180 全ねじ / ISO 4017). A smaller value leaves a
-# plain shank under the head.
-thread_len = shank - 2
 
 head_h = 10
 hr = 13.856    # hex head circumradius: across flats 24 / sqrt(3)
 
-land = pitch / 8       # crest flat left between grooves (ISO metric truncation)
-hw = (pitch - land) / 2   # groove half-width at the shank surface
-gd = hw * 1.7320508    # groove depth for 60-degree flanks: half-width / tan(30)
-lead = gd / 8          # tool overhang past the shank surface (see the guard above)
-groove = polyline [(lead, -(hw * (1 + lead / gd))),
-                   (-gd, 0),
-                   (lead, hw * (1 + lead / gd))]
-
-# Where the thread starts, in shank coordinates (0 = seat, `shank` = tip).
-# `runout` is the 不完全ねじ部: the groove begins that much below the nominal
-# thread length, as a rolled thread runs out into the plain shank. With a full
-# thread it takes the groove 1 mm past the seat, so it does not end on the
-# head's face.
-runout = 1
-thread_z0 = shank - thread_len - runout
-
-# The tip is chamfered at 45 degrees down to the thread root (ISO 4753 type
-# CH), which is what lets a nut start. Chamfer the plain cylinder first: after
-# the thread is cut, the tip's rim is broken by the groove and `chamfer` only
-# gets part of it.
-tip = gd + lead
-
-# The tool is swept 2 mm too long at the start and cut back to a plane at
-# thread_z0, so the thread begins on a flat circle all the way round instead
-# of on the sweep's own slanted cap.
-shaft = cylinder r shank | floor
- | faces >Z | chamfer tip
- | diff (helix pitch (shank + 4 - thread_z0) r
-         | sweep groove
-         | translate 0 0 (thread_z0 - 2)
-         | inter (cylinder (r + 1) (shank + 8) | floor | translate 0 0 thread_z0))
+# 2026-10-02: the `thread` primitive builds the threaded shank directly
+# (one ruled face per flank per turn, no swept groove, no boolean against the
+# cylinder). Same ISO profile as the swept groove it replaces: crest land pitch/8, 60-degree flanks to a
+# sharp root (depth (pitch - land) / 2 * sqrt(3), the default). The thread runs to the head (全ねじ).
+# chamfer:true cuts the tip at 45 degrees down to the thread root (ISO 4753
+# type CH), which is what lets a nut start.
+shaft = thread r pitch shank chamfer:true
+ | floor
  | translate 0 0 head_h
 
 head = polygon 6 hr

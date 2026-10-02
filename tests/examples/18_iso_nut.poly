@@ -31,20 +31,10 @@ rn = r + fit
 # Groove profile, identical to the bolt's: 60-degree flanks, ISO crest
 # truncation of pitch/8, and a lead so the tool overhangs the surface it cuts
 # rather than being tangent to it (tangency leaves micron-thin slivers).
-land = pitch / 8
-hw = (pitch - land) / 2
-gd = hw * 1.7320508
-lead = gd / 8
-groove = polyline [(lead, -(hw * (1 + lead / gd))),
-                   (-gd, 0),
-                   (lead, hw * (1 + lead / gd))]
-
-# The plug: a threaded rod 1 mm longer than the nut at both ends, so it cuts
-# clean through. The helical tool runs out through both of its end faces; that
-# needs occt-wasm ps3 or later (devel/occt-helix-cut-bug202609.md), before
-# which the helix had to be buried in an oversized blank.
-plug = cylinder rn (nut_h + 2) | translate 0 0 (nut_h / 2)
- | diff (helix pitch (nut_h + 6) rn | sweep groove | translate 0 0 -3)
+# 2026-10-02: the plug that cuts the internal thread is a `thread`
+# primitive instead of a cylinder minus a swept groove. It overshoots the nut
+# by 3 mm each side, so its flat ends never touch the nut's faces.
+plug = thread rn pitch (nut_h + 6) | floor | translate 0 0 -3
 
 polygon 6 hr
  | extrude nut_h
