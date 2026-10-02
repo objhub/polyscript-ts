@@ -27,6 +27,7 @@ export class ParseError extends Error {
 // Map keyword to AST node type for source commands
 const SOURCE_CMD_TYPE: Record<string, string> = {
   box: 'BoxExpr', cylinder: 'CylinderExpr', sphere: 'SphereExpr', cone: 'ConeExpr', torus: 'TorusExpr', wedge: 'WedgeExpr',
+  thread: 'ThreadExpr',
   rect: 'RectExpr', circle: 'CircleExpr', ellipse: 'EllipseExpr',
   polyline: 'PolylineExpr', polygon: 'PolygonExpr', text: 'TextExpr', sketch: 'SketchExpr',
   line: 'LinePathExpr', arc: 'ArcPathExpr',
@@ -71,7 +72,7 @@ const PIPE_2D_PRIMITIVES: Record<string, string> = {
 // 3D primitives that can appear as pipe ops (Implicit3DPrimitive)
 const PIPE_3D_PRIMITIVES: Record<string, string> = {
   box: 'BoxExpr', cylinder: 'CylinderExpr', sphere: 'SphereExpr',
-  cone: 'ConeExpr', torus: 'TorusExpr', wedge: 'WedgeExpr',
+  cone: 'ConeExpr', torus: 'TorusExpr', wedge: 'WedgeExpr', thread: 'ThreadExpr',
 };
 
 
@@ -606,13 +607,13 @@ export class Parser {
 
     // Parse optional named args after ]  (e.g. sketch [...] at:5 5)
     const namedArgs: NamedArg[] = [];
-    while (this.match(TokenType.Identifier) && this.peek(1).type === TokenType.Colon) {
+    while (this.atNamedArgKey()) {
       const naToken = this.current();
       const key = this.advance().value;
       this.advance(); // ':'
       const vals: Expression[] = [];
       while (this.canStartGreedyArg()) {
-        if (this.match(TokenType.Identifier) && this.peek(1).type === TokenType.Colon) break;
+        if (this.atNamedArgKey()) break;
         vals.push(this.parseGreedyVal());
       }
       if (vals.length === 0) {
@@ -941,7 +942,7 @@ export class Parser {
 
     while (this.canStartGreedyArg()) {
       // Check for named arg: identifier followed by ':'
-      if (this.match(TokenType.Identifier) && this.peek(1).type === TokenType.Colon) {
+      if (this.atNamedArgKey()) {
         const startToken = this.current();
         const key = this.advance().value;
         this.advance(); // ':'
@@ -949,7 +950,7 @@ export class Parser {
         const vals: Expression[] = [];
         while (this.canStartGreedyArg()) {
           // Stop before next named arg (identifier:)
-          if (this.match(TokenType.Identifier) && this.peek(1).type === TokenType.Colon) break;
+          if (this.atNamedArgKey()) break;
           vals.push(this.parseGreedyVal());
         }
         if (vals.length === 0) {
@@ -978,6 +979,18 @@ export class Parser {
    * Check if the token at the given offset from current position
    * can start a greedy argument.
    */
+  /**
+   * At the key of a named argument: a name followed by ':'. The name may be
+   * a keyword as well as an identifier -- in argument position a keyword
+   * directly followed by ':' has no other reading, and it lets an option be
+   * called what it is (`thread 8 2 30 chamfer:true`) even when the word is
+   * also a pipe operation.
+   */
+  private atNamedArgKey(): boolean {
+    return (this.match(TokenType.Identifier) || this.match(TokenType.Keyword))
+      && this.peek(1).type === TokenType.Colon;
+  }
+
   private canStartGreedyArg(offset = 0): boolean {
     const token = this.peek(offset);
     switch (token.type) {
@@ -994,8 +1007,10 @@ export class Parser {
         // Also check for kwarg pattern: name:value
         return true;
       case TokenType.Keyword:
-        // Only pi, true, false can appear as greedy vals
-        return token.value === 'pi' || token.value === 'true' || token.value === 'false';
+        // pi, true, false can appear as greedy vals; any keyword directly
+        // followed by ':' is the key of a named arg (`thread ... chamfer:true`)
+        if (token.value === 'pi' || token.value === 'true' || token.value === 'false') return true;
+        return this.peek(offset + 1).type === TokenType.Colon;
       default:
         return false;
     }
@@ -1346,7 +1361,7 @@ export class Parser {
 
   private parseCallArg(args: Expression[], namedArgs: NamedArg[]): string {
     // Named arg: name:value
-    if (this.match(TokenType.Identifier) && this.peek(1).type === TokenType.Colon) {
+    if (this.atNamedArgKey()) {
       const startToken = this.current();
       const key = this.advance().value;
       this.advance(); // ':'

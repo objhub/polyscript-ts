@@ -58,6 +58,7 @@ export interface SphereExpr { type: 'SphereExpr'; args: Expression[]; namedArgs:
 export interface ConeExpr { type: 'ConeExpr'; args: Expression[]; namedArgs: NamedArg[]; loc?: SourceLocation; }
 export interface TorusExpr { type: 'TorusExpr'; args: Expression[]; namedArgs: NamedArg[]; loc?: SourceLocation; }
 export interface WedgeExpr { type: 'WedgeExpr'; args: Expression[]; namedArgs: NamedArg[]; loc?: SourceLocation; }
+export interface ThreadExpr { type: 'ThreadExpr'; args: Expression[]; namedArgs: NamedArg[]; loc?: SourceLocation; }
 
 // --- 2D Primitives ---
 
@@ -120,7 +121,7 @@ export interface Implicit3DPrimitive { type: 'Implicit3DPrimitive'; primitive: E
 // --- Primitive union types ---
 
 /** 3D primitive expression types (all have args + namedArgs) */
-export type Primitive3DExpr = BoxExpr | CylinderExpr | SphereExpr | ConeExpr | TorusExpr | WedgeExpr;
+export type Primitive3DExpr = BoxExpr | CylinderExpr | SphereExpr | ConeExpr | TorusExpr | WedgeExpr | ThreadExpr;
 
 /** 2D primitive expression types (all have args + namedArgs) */
 export type Primitive2DExpr = RectExpr | CircleExpr | EllipseExpr | PolylineExpr | PolygonExpr | TextExpr;
@@ -148,7 +149,7 @@ export type Expression =
   | NumberLit | StringLit | BoolConst | VarRef | TagRef
   | TupleLit | ListLit | ListComp | SelectorLit | IndexAccess
   | BinOp | UnaryNeg | IfExpr | FuncCall
-  | BoxExpr | CylinderExpr | SphereExpr | ConeExpr | TorusExpr | WedgeExpr
+  | BoxExpr | CylinderExpr | SphereExpr | ConeExpr | TorusExpr | WedgeExpr | ThreadExpr
   | RectExpr | CircleExpr | EllipseExpr | PolylineExpr | PolygonExpr | TextExpr | SketchExpr
   | LinePathExpr | ArcPathExpr | CenterArcPathExpr | BezierPathExpr | HelixPathExpr | SplinePathExpr
   | WireLiteralExpr
@@ -174,7 +175,7 @@ export type Node = Program | Statement | PipeOp | NamedArg;
 // --- Source command keywords ---
 
 export const SOURCE_COMMANDS = new Set([
-  'box', 'cylinder', 'sphere', 'cone', 'torus', 'wedge',
+  'box', 'cylinder', 'sphere', 'cone', 'torus', 'wedge', 'thread',
   'rect', 'circle', 'ellipse', 'polyline', 'polygon', 'text', 'sketch',
   'line', 'arc', 'bezier', 'helix', 'spline',
   'wire',
@@ -196,7 +197,7 @@ export const PIPE_OP_KEYWORDS = new Set([
   'floor',
   'color',
   'rect', 'circle', 'ellipse', 'polyline', 'polygon', 'sketch',
-  'box', 'cylinder', 'sphere', 'cone', 'torus', 'wedge',
+  'box', 'cylinder', 'sphere', 'cone', 'torus', 'wedge', 'thread',
 ]);
 
 // --- All keywords (cannot be used as identifiers) ---

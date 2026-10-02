@@ -45,7 +45,7 @@ export {
 export { boundingBox, createWorkplane, getOffsets } from './workplane.js';
 
 // 3D Primitives
-export { wpBox, wpCylinder, wpSphere, wpCone, wpTorus, wpWedge, type Center3 } from './primitives-3d.js';
+export { wpBox, wpCylinder, wpSphere, wpCone, wpTorus, wpWedge, wpThread, type Center3 } from './primitives-3d.js';
 
 // 2D Primitives
 export { wpRect, wpCircle, wpEllipse, wpPolygon, wpText, type Center2 } from './primitives-2d.js';

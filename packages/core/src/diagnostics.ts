@@ -41,6 +41,7 @@ export const DIAGNOSTIC_CODES = [
   'check.no-effect',
   'check.brep-invalid',
   'check.sweep-distorted',
+  'thread.short',
   'param.unknown',
   'param.type',
   'param.choice',
@@ -281,6 +282,15 @@ const EXPLANATIONS: Record<DiagnosticCode, Explanation> = {
     fix: 'Find the step that broke it with `poly verify --trace`: a jump in the\n'
       + 'face count or a solid count above 1 usually marks it. Avoid booleans\n'
       + 'whose tool exactly touches the material surface.',
+  },
+  'thread.short': {
+    title: 'A thread shorter than one pitch',
+    why: 'thread r pitch h makes h of thread along the axis; with h below the\n'
+      + 'pitch that is less than one turn. It builds, but it is rarely what was\n'
+      + 'meant: the arguments are r, pitch, h in that order, and swapping the\n'
+      + 'last two is the usual cause (thread 8 30 2 for an M16 x 2 of length 30).',
+    fix: 'Check the argument order. If a thread shorter than one turn really is\n'
+      + 'intended, ignore the warning.',
   },
   'check.sweep-distorted': {
     title: 'A sweep came out far from profile area x path length',

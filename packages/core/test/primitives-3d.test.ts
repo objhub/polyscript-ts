@@ -141,6 +141,27 @@ describe('3D primitives', () => {
       expect(ops[1].type).toBe('Implicit3DPrimitive');
       expect((ops[1] as any).primitive.type).toBe('TorusExpr');
     });
+
+    it('parses thread with its options, including the keyword-named chamfer:', () => {
+      const ast = parse('thread 8 2 30 chamfer:true land:0.25');
+      const expr = ast.statements[0] as any;
+      expect(expr.type).toBe('ThreadExpr');
+      expect(expr.args).toHaveLength(3);
+      expect(expr.namedArgs.map((n: any) => n.key)).toEqual(['chamfer', 'land']);
+    });
+
+    it('a keyword followed by ":" is a named arg only in argument position', () => {
+      // the pipe operation keeps its meaning
+      const { ops } = parsePipeline('box 10 10 10 | faces >Z | chamfer 1');
+      expect(ops[1].type).toBe('Chamfer');
+      // a tuple value works for a keyword key too
+      const ast = parse('thread 8 2 30 chamfer:(1, 2)');
+      const na = (ast.statements[0] as any).namedArgs[0];
+      expect(na.key).toBe('chamfer');
+      expect(na.value.type).toBe('TupleLit');
+      // a key with no value is still an error
+      expect(() => parse('thread 8 2 30 chamfer:')).toThrow();
+    });
   });
 
   // ---------------------------------------------------------------------------

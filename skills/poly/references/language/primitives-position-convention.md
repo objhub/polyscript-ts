@@ -11,7 +11,7 @@
 
 | Operation | Z-axis placement | Example (height 10) |
 |---|---|---|
-| `box`, `cylinder`, `sphere`, `cone`, `torus` | Centered at origin | z = -5..+5 |
+| `box`, `cylinder`, `sphere`, `cone`, `torus`, `thread` | Centered at origin | z = -5..+5 |
 | `extrude h` | Bottom-aligned (z=0 upward) | z = 0..10 |
 
 In other words, the bottom face of `box 10 10 10` sits at z=-5, while `rect 10 10 | extrude 10` starts at z=0. When you put both in the same scene, their bottoms don't line up.

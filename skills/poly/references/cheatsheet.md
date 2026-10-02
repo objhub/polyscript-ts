@@ -19,8 +19,9 @@
 | `cone` | r1 r2 h | `cone 10 0 20` |
 | `torus` | r1 r2 | `torus 20 5` |
 | `wedge` | dx dy dz ltx | `wedge 20 10 15 5` |
+| `thread` | r pitch h | `thread 8 2 30 chamfer:true`（おねじ。`land:` `depth:` `chamfer:`） |
 
-> **位置規約**: `box`/`cylinder`/`sphere`/`cone`/`torus` は原点中心（centered）。`extrude h` は z=0..h で底面合わせ。混在する場合は `| floor` / `translate` / `center:(true,true,false)` で揃える。
+> **位置規約**: `box`/`cylinder`/`sphere`/`cone`/`torus`/`thread` は原点中心（centered）。`extrude h` は z=0..h で底面合わせ。混在する場合は `| floor` / `translate` / `center:(true,true,false)` で揃える。
 
 ### 2D
 

@@ -9,7 +9,7 @@ import type {
   Program, Statement, Expression, PipeOp, Pipeline,
   Assignment, FuncDef, Import, NamedArg,
   BinOp, IfExpr, FuncCall,
-  BoxExpr, CylinderExpr, SphereExpr, ConeExpr, TorusExpr, WedgeExpr,
+  BoxExpr, CylinderExpr, SphereExpr, ConeExpr, TorusExpr, WedgeExpr, ThreadExpr,
   RectExpr, CircleExpr, EllipseExpr, PolylineExpr, PolygonExpr, TextExpr,
   LinePathExpr, ArcPathExpr, CenterArcPathExpr, BezierPathExpr, HelixPathExpr, SplinePathExpr, SketchExpr, WireLiteralExpr,
   Union, Diff, Inter,
@@ -52,7 +52,7 @@ import {
 } from './types.js';
 
 // Sub-module imports
-import { evalBox, evalCylinder, evalSphere, evalCone, evalTorus, evalWedge, eval3DPrimitive } from './primitives-3d.js';
+import { evalBox, evalCylinder, evalSphere, evalCone, evalTorus, evalWedge, evalThread, eval3DPrimitive } from './primitives-3d.js';
 import { eval2DPrimitive, evalRect, evalCircle, evalEllipse, evalPolyline, evalPolygon, evalText } from './primitives-2d.js';
 import { evalFacesSelect, evalEdgesSelect, evalVertsSelect, evalPointsSelect } from './pipe-selection.js';
 import { evalFilletOp, evalChamferOp, evalShellOp, evalOffsetOp } from './pipe-modifiers.js';
@@ -155,6 +155,7 @@ export class Evaluator {
       'ConeExpr': (e) => this.evalCone(e as ConeExpr),
       'TorusExpr': (e) => this.evalTorus(e as TorusExpr),
       'WedgeExpr': (e) => this.evalWedge(e as WedgeExpr),
+      'ThreadExpr': (e) => this.evalThread(e as ThreadExpr),
       // 2D Primitives
       'RectExpr': (e) => this.evalRect(e as RectExpr),
       'CircleExpr': (e) => this.evalCircle(e as CircleExpr),
@@ -620,6 +621,10 @@ export class Evaluator {
 
   private evalWedge(node: WedgeExpr): Value {
     return evalWedge(this.oc, node, e => this.evalExpr(e));
+  }
+
+  private evalThread(node: ThreadExpr): Value {
+    return evalThread(this.oc, node, e => this.evalExpr(e));
   }
 
   // -----------------------------------------------------------------------
@@ -1236,6 +1241,7 @@ export class Evaluator {
       case 'ConeExpr':
       case 'TorusExpr':
       case 'WedgeExpr':
+      case 'ThreadExpr':
       case 'Union':
       case 'Diff':
       case 'Inter':

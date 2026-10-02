@@ -2,9 +2,9 @@
  * 3D primitive evaluator functions: box, cylinder, sphere, cone, torus.
  */
 
-import type { BoxExpr, CylinderExpr, SphereExpr, ConeExpr, TorusExpr, WedgeExpr, Expression, NamedArg, Primitive3DExpr } from '../ast.js';
+import type { BoxExpr, CylinderExpr, SphereExpr, ConeExpr, TorusExpr, WedgeExpr, ThreadExpr, Expression, NamedArg, Primitive3DExpr } from '../ast.js';
 import type { OC, WpState, Shape } from '../ocp-kernel.js';
-import { createWorkplane, wpBox, wpCylinder, wpSphere, wpCone, wpTorus, wpWedge, type Center3 } from '../ocp-kernel.js';
+import { createWorkplane, wpBox, wpCylinder, wpSphere, wpCone, wpTorus, wpWedge, wpThread, type Center3 } from '../ocp-kernel.js';
 import { getOffsets } from '../ocp-kernel/workplane.js';
 import { cloneState } from '../ocp-kernel/types.js';
 import { asNumber, resolveNamedArgs, EvalError, type Value } from './types.js';
@@ -137,6 +137,45 @@ export function evalWedge(oc: OC, node: WedgeExpr, evalExprFn: (e: Expression) =
   return applyNamedArgs3DToResult(oc, result, node.namedArgs, evalExprFn);
 }
 
+/** `thread r pitch h` options: land (crest flat, default pitch / 8), depth (default: 60-degree flanks
+ *  down to a sharp root, (pitch - land) / 2 * sqrt(3)), chamfer (45-degree chamfer of the ends:
+ *  a size, `true` for "down to the root" (= depth), or `(bottom, top)`; default none). */
+function threadOptions(namedArgs: NamedArg[], pitch: number, evalExprFn: (e: Expression) => Value) {
+  const get = (name: string) => namedArgs.find(n => n.key === name);
+  const num = (name: string, dflt: number) => {
+    const a = get(name);
+    return a ? asNumber(evalExprFn(a.value)) : dflt;
+  };
+  const land = num('land', pitch / 8);
+  const depth = num('depth', (pitch - land) / 2 * Math.sqrt(3));
+  const one = (v: Value): number => {
+    if (typeof v === 'boolean') return v ? depth : 0;
+    if (typeof v === 'number') return v;
+    throw new EvalError('thread: chamfer must be a size, true/false, or (bottom, top)');
+  };
+  let chamfer = { bottom: 0, top: 0 };
+  const c = get('chamfer');
+  if (c) {
+    const v = evalExprFn(c.value);
+    if (Array.isArray(v)) {
+      if (v.length !== 2) throw new EvalError('thread: chamfer takes one value for the top, or (bottom, top)', c.loc);
+      chamfer = { bottom: one(v[0] as Value), top: one(v[1] as Value) };
+    } else {
+      chamfer = { bottom: 0, top: one(v) };
+    }
+  }
+  return { depth, land, chamfer };
+}
+
+export function evalThread(oc: OC, node: ThreadExpr, evalExprFn: (e: Expression) => Value): Value {
+  const args = node.args.map(e => asNumber(evalExprFn(e)));
+  const [r = 5, pitch = 1, h = 10] = args;
+  const { centerVal } = extractNamedArgs3D(node.namedArgs, evalExprFn);
+  const state = createWorkplane(oc);
+  const result = wpThread(state, r, pitch, h, threadOptions(node.namedArgs, pitch, evalExprFn), centerVal);
+  return applyNamedArgs3DToResult(oc, result, node.namedArgs, evalExprFn);
+}
+
 /**
  * Evaluate a 3D primitive in pipe context (e.g. VertexSelection).
  * Creates a 3D shape at each offset point in state.points, translating
@@ -186,6 +225,12 @@ export function eval3DPrimitive(
       const args = expr.args.map(e => asNumber(evalExprFn(e)));
       const [wdx = 1, wdy = 1, wdz = 1, wltx = 0] = args;
       baseShape = wpWedge(baseState, wdx, wdy, wdz, wltx, centerVal);
+      break;
+    }
+    case 'ThreadExpr': {
+      const args = expr.args.map(e => asNumber(evalExprFn(e)));
+      const [tr = 5, tp = 1, th = 10] = args;
+      baseShape = wpThread(baseState, tr, tp, th, threadOptions(namedArgs, tp, evalExprFn), centerVal);
       break;
     }
     default:
